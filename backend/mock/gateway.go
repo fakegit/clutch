@@ -21,8 +21,8 @@ import (
 )
 
 var MockServiceFactory = service.Factory{
-	aws.Name:             awsmock.NewAsService,
 	audit.Name:           auditmock.NewAsService,
+	aws.Name:             awsmock.NewAsService,
 	envoyadmin.Name:      envoyadminmock.NewAsService,
 	experimentstore.Name: experimentstoremock.NewMock,
 	github.Name:          githubmock.NewAsService,

@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+########
+# Note: When updating any of these versions be sure to also
+# update the corresponding version in .vscode/settings.json
+# and api/.vscode/settings.json
+########
+
 # https://github.com/protocolbuffers/protobuf/releases
-PROTOC_RELEASE=3.14.0
-PROTO_ZIP_RELEASE_MD5_LINUX=cef4dc2f438e44e5d1af64ba4f9dbaa6
-PROTO_ZIP_RELEASE_MD5_OSX=ac2977d94676a7371b9e92fa3a29bc21
+PROTOC_RELEASE=3.17.3
+PROTO_ZIP_RELEASE_MD5_LINUX=80d0b941868e58f2d1af20fbe8143341
+PROTO_ZIP_RELEASE_MD5_OSX=b97730ce009f781d895e816549bfc663
 
 # https://github.com/protobufjs/protobuf.js/releases
 # NOTE: should match frontend/package.json
-PROTOBUFJS_RELEASE=6.10.2
+PROTOBUFJS_RELEASE=6.11.2
 
 # https://github.com/angular/clang-format/releases
 ANGULAR_CLANG_FORMAT_RELEASE=1.4.0
@@ -146,6 +152,22 @@ main() {
       --plugin protoc-gen-validate="${GOBIN}/protoc-gen-validate" \
       "${proto_dir}"/*.proto
   done
+
+  # Compile the test proto if we're in the core repository.
+  if [[ "${SCRIPT_ROOT}" == "${REPO_ROOT}" ]]; then
+    testpb="${REPO_ROOT}/backend/internal/test/pb/test.proto"
+    echo "${testpb}"
+    "${PROTOC_BIN}" \
+    -I"${PROTOC_INCLUDE_DIR}" -I"${API_ROOT}" -I"${googleapis_include_path}" \
+    -I "${REPO_ROOT}"/backend/internal/test/pb/ \
+    --go_out "${REPO_ROOT}"/backend/internal/test/pb \
+    --go_opt paths=source_relative \
+    --plugin protoc-gen-go="${GOBIN}/protoc-gen-go" \
+    --plugin protoc-gen-go-grpc="${GOBIN}/protoc-gen-go-grpc" \
+    --plugin protoc-gen-grpc-gateway="${GOBIN}/protoc-gen-grpc-gateway" \
+    --plugin protoc-gen-validate="${GOBIN}/protoc-gen-validate" \
+    "${testpb}"
+  fi
 
   echo "info: compiling javascript bundle"
   cd ..

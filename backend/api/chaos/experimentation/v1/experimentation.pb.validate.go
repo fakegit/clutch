@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,11 +30,8 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
 )
-
-// define the regex for a UUID once up-front
-var _experimentation_uuidPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 // Validate checks the field values on CreateExperimentRequest with the rules
 // defined in the proto definition for this message. If any rules are
@@ -370,19 +367,7 @@ func (m *GetExperimentsRequest) Validate() error {
 		return nil
 	}
 
-	if len(m.GetConfigType()) < 1 {
-		return GetExperimentsRequestValidationError{
-			field:  "ConfigType",
-			reason: "value length must be at least 1 bytes",
-		}
-	}
-
-	if _, ok := _GetExperimentsRequest_Status_NotInLookup[m.GetStatus()]; ok {
-		return GetExperimentsRequestValidationError{
-			field:  "Status",
-			reason: "value must not be in list [0]",
-		}
-	}
+	// no validation rules for ConfigType
 
 	if _, ok := GetExperimentsRequest_Status_name[int32(m.GetStatus())]; !ok {
 		return GetExperimentsRequestValidationError{
@@ -449,10 +434,6 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = GetExperimentsRequestValidationError{}
-
-var _GetExperimentsRequest_Status_NotInLookup = map[GetExperimentsRequest_Status]struct{}{
-	0: {},
-}
 
 // Validate checks the field values on GetExperimentsResponse with the rules
 // defined in the proto definition for this message. If any rules are
@@ -551,10 +532,10 @@ func (m *CancelExperimentRunRequest) Validate() error {
 		}
 	}
 
-	if utf8.RuneCountInString(m.GetReason()) > 100 {
+	if utf8.RuneCountInString(m.GetReason()) > 150 {
 		return CancelExperimentRunRequestValidationError{
 			field:  "Reason",
-			reason: "value length must be at most 100 runes",
+			reason: "value length must be at most 150 runes",
 		}
 	}
 

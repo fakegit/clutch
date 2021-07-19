@@ -145,7 +145,7 @@ const IconButton = styled(MuiIconButton)({
 });
 
 interface AutocompleteResultProps {
-  id: string;
+  id?: string;
   label: string;
 }
 
@@ -179,7 +179,7 @@ export interface TextFieldProps
     >,
     Pick<MuiInputProps, "readOnly" | "endAdornment"> {
   onReturn?: () => void;
-  autocompleteCallback?: (v: string) => Promise<any>;
+  autocompleteCallback?: (v: string) => Promise<{ results: { id?: string; label: string }[] }>;
 }
 
 const TextField = ({
@@ -228,10 +228,15 @@ const TextField = ({
     },
   };
 
-  if (autocompleteCallback !== undefined) {
-    const [autoCompleteOptions, setAutoCompleteOptions] = React.useState([]);
-    const autoCompleteDebounce = React.useRef(
-      _.debounce(value => {
+  // We maintain a defaultVal to prevent the value from changing from underneath
+  // the component. This is required because autocomplete is uncontrolled.
+  const [defaultVal] = React.useState<string>((defaultValue as string) || "");
+  const [autoCompleteOptions, setAutoCompleteOptions] = React.useState<AutocompleteResultProps[]>(
+    []
+  );
+  const autoCompleteDebounce = React.useRef(
+    _.debounce(value => {
+      if (autocompleteCallback !== undefined) {
         autocompleteCallback(value)
           .then(data => {
             setAutoCompleteOptions(data.results);
@@ -239,9 +244,10 @@ const TextField = ({
           .catch(err => {
             helpText = err;
           });
-      }, 500)
-    ).current;
-
+      }
+    }, 500)
+  ).current;
+  if (autocompleteCallback !== undefined) {
     // TODO (mcutalo): support option.label in the renderOption
     return (
       <Autocomplete
@@ -249,13 +255,17 @@ const TextField = ({
         size="small"
         options={autoCompleteOptions}
         PopperComponent={Popper}
-        getOptionLabel={option => (option?.id ? option.id : option)}
+        getOptionLabel={option =>
+          typeof option === "string" ? option : option?.id || option.label
+        }
         onInputChange={(__, v) => autoCompleteDebounce(v)}
-        renderOption={option => <AutocompleteResult id={option.id} label={option.label} />}
+        renderOption={(option: AutocompleteResultProps) => (
+          <AutocompleteResult id={option.id} label={option.label} />
+        )}
         onSelectCapture={e =>
           onChange(e as React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>)
         }
-        defaultValue={{ id: defaultValue, label: defaultValue }}
+        defaultValue={{ id: defaultVal, label: defaultVal }}
         renderInput={inputProps => (
           <StyledTextField
             {...inputProps}

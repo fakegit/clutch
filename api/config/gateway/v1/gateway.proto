@@ -8,6 +8,7 @@ import "google/protobuf/any.proto";
 import "google/protobuf/duration.proto";
 import "validate/validate.proto";
 import "config/middleware/accesslog/v1/accesslog.proto";
+import "google/protobuf/wrappers.proto";
 
 message Config {
   GatewayOptions gateway = 1 [ (validate.rules).message = {required : true} ];
@@ -50,11 +51,15 @@ message Stats {
     }
   }
 
+  message PrometheusReporter {
+    string handler_path = 1;
+  }
+
   // The reporter to emit stats. If none specified, then stats will not be reported.
   oneof reporter {
     LogReporter log_reporter = 2;
     StatsdReporter statsd_reporter = 3;
-    //  TODO: Prometheus support.
+    PrometheusReporter prometheus_reporter = 5;
   }
 
   message GoRuntimeStats {
@@ -100,6 +105,12 @@ message GatewayOptions {
   bool enable_pprof = 8;
 
   clutch.config.middleware.accesslog.v1.Config accesslog = 9;
+
+  // Maximum allowed size of a gRPC response (before transcoding to JSON). Defaults to 4MB (i.e. 4194304 bytes).
+  uint32 max_response_size_bytes = 10;
+
+  // Whether or not cookies should be sent with the 'Secure' flag. Default value is true.
+  google.protobuf.BoolValue secure_cookies = 11;
 }
 
 // Assets configuration provide a passthrough host for frontend static assets.
@@ -133,6 +144,10 @@ message Logger {
   oneof format {
     bool pretty = 2;
   }
+
+  // Namespace will set a zap.Namespace for your logging fields to be nested in.
+  // https://pkg.go.dev/go.uber.org/zap?utm_source=godoc#Namespace
+  string namespace = 3;
 }
 
 message Middleware {

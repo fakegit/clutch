@@ -101,6 +101,13 @@ service K8sAPI {
     option (clutch.api.v1.action).type = READ;
   }
 
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {
+    option (google.api.http) = {
+      post : "/v1/k8s/listServices"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
+  }
   rpc DeleteService(DeleteServiceRequest) returns (DeleteServiceResponse) {
     option (google.api.http) = {
       post : "/v1/k8s/deleteService"
@@ -351,6 +358,11 @@ message Pod {
   // the status of its containers.
   // ref: https://github.com/kubernetes/kubernetes/blob/master/pkg/printers/internalversion/printers.go#L761
   string status = 14;
+
+  // This is here as a workound since protobufjs currently has serialization
+  // issues for well-known types like google.protobuf.Timestamp
+  // Unix timestamp (milliseconds since Jan 01 1970)
+  int64 start_time_millis = 15;
 }
 
 message ListOptions {
@@ -378,7 +390,7 @@ message ListPodsRequest {
 message ListPodsResponse {
   option (clutch.api.v1.reference).fields = "pods";
 
-  repeated Pod pods = 1;
+  repeated Pod pods = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeletePodRequest {
@@ -524,6 +536,11 @@ message Deployment {
     repeated Condition deployment_conditions = 6;
   }
   DeploymentStatus deployment_status = 6;
+
+  // This is a workound since protobufjs currently has serialization
+  // issues for well-known types like google.protobuf.Timestamp
+  // Unix timestamp (milliseconds since Jan 01 1970)
+  int64 creation_time_millis = 7;
 }
 
 message DescribeDeploymentRequest {
@@ -541,7 +558,7 @@ message DescribeDeploymentRequest {
 message DescribeDeploymentResponse {
   option (clutch.api.v1.reference).fields = "deployment";
 
-  Deployment deployment = 1;
+  Deployment deployment = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message ListDeploymentsRequest {
@@ -560,7 +577,7 @@ message ListDeploymentsRequest {
 message ListDeploymentsResponse {
   option (clutch.api.v1.reference).fields = "deployments";
 
-  repeated Deployment deployments = 1;
+  repeated Deployment deployments = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message UpdateDeploymentRequest {
@@ -617,6 +634,18 @@ message StatefulSet {
 
   map<string, string> labels = 4;
   map<string, string> annotations = 5;
+
+  message Status {
+    uint32 replicas = 1;
+    uint32 updated_replicas = 2;
+    uint32 ready_replicas = 3;
+  }
+  Status status = 6;
+
+  // This is a workound since protobufjs currently has serialization
+  // issues for well-known types like google.protobuf.Timestamp
+  // Unix timestamp (milliseconds since Jan 01 1970)
+  int64 creation_time_millis = 7;
 }
 
 message DescribeStatefulSetRequest {
@@ -634,7 +663,7 @@ message DescribeStatefulSetRequest {
 message DescribeStatefulSetResponse {
   option (clutch.api.v1.reference).fields = "stateful_set";
 
-  StatefulSet stateful_set = 1;
+  StatefulSet stateful_set = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message ListStatefulSetsRequest {
@@ -653,7 +682,7 @@ message ListStatefulSetsRequest {
 message ListStatefulSetsResponse {
   option (clutch.api.v1.reference).fields = "stateful_sets";
 
-  repeated StatefulSet stateful_sets = 1;
+  repeated StatefulSet stateful_sets = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteStatefulSetRequest {
@@ -720,6 +749,11 @@ message Service {
 
   map<string, string> labels = 5;
   map<string, string> annotations = 6;
+
+  // service traffic routed to pods with label keys
+  // and values matching this selector.
+  // ref: https://pkg.go.dev/k8s.io/api/core/v1#ServiceSpec
+  map<string, string> selector = 7;
 }
 
 message DescribeServiceRequest {
@@ -737,7 +771,21 @@ message DescribeServiceRequest {
 message DescribeServiceResponse {
   option (clutch.api.v1.reference).fields = "service";
 
-  Service service = 1;
+  Service service = 1 [ (clutch.api.v1.log) = false ];
+}
+
+message ListServicesRequest {
+  string clientset = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string cluster = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string namespace = 3 [ (validate.rules).string = {min_bytes : 1} ];
+
+  ListOptions options = 4 [ (validate.rules).message = {required : true} ];
+}
+
+message ListServicesResponse {
+  option (clutch.api.v1.reference).fields = "services";
+
+  repeated Service services = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteServiceRequest {
@@ -799,7 +847,7 @@ message DescribeCronJobRequest {
 message DescribeCronJobResponse {
   option (clutch.api.v1.reference).fields = "cron";
 
-  CronJob cronjob = 1;
+  CronJob cronjob = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message ListCronJobsRequest {
@@ -818,7 +866,7 @@ message ListCronJobsRequest {
 message ListCronJobsResponse {
   option (clutch.api.v1.reference).fields = "cron_jobs";
 
-  repeated CronJob cron_jobs = 1;
+  repeated CronJob cron_jobs = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteCronJobRequest {
@@ -873,7 +921,7 @@ message ListConfigMapsRequest {
 message ListConfigMapsResponse {
   option (clutch.api.v1.reference).fields = "config_maps";
 
-  repeated ConfigMap config_maps = 1;
+  repeated ConfigMap config_maps = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DescribeConfigMapRequest {
@@ -891,7 +939,7 @@ message DescribeConfigMapRequest {
 message DescribeConfigMapResponse {
   option (clutch.api.v1.reference).fields = "config_map";
 
-  ConfigMap config_map = 1;
+  ConfigMap config_map = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteConfigMapRequest {
@@ -939,7 +987,7 @@ message ListJobsRequest {
 message ListJobsResponse {
   option (clutch.api.v1.reference).fields = "jobs";
 
-  repeated Job jobs = 1;
+  repeated Job jobs = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteJobRequest {
@@ -974,7 +1022,7 @@ message CreateJobRequest {
 }
 
 message CreateJobResponse {
-  Job job = 1;
+  Job job = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message Namespace {
@@ -1004,7 +1052,7 @@ message DescribeNamespaceRequest {
 message DescribeNamespaceResponse {
   option (clutch.api.v1.reference).fields = "namespace";
 
-  Namespace namespace = 1;
+  Namespace namespace = 1 [ (clutch.api.v1.log) = false ];
 }
 
 // This message type is used to add support for nullable strings and is an

@@ -1,6 +1,5 @@
 import React from "react";
 import { useForm } from "react-hook-form";
-import { useSearchParams } from "react-router-dom";
 import type { clutch } from "@clutch-sh/api";
 import styled from "@emotion/styled";
 import SearchIcon from "@material-ui/icons/Search";
@@ -15,6 +14,7 @@ import {
 import { Button } from "../button";
 import { Alert } from "../Feedback";
 import TextField from "../Input/text-field";
+import { useSearchParams } from "../navigation";
 import { client } from "../Network";
 
 import type { ChangeEventTarget } from "./hydrator";
@@ -30,6 +30,7 @@ interface QueryResolverProps {
   inputType: string;
   schemas: clutch.resolver.v1.Schema[];
   submitHandler: any;
+  enableAutocomplete?: boolean;
 }
 
 const autoComplete = async (type: string, search: string): Promise<any> => {
@@ -47,7 +48,12 @@ const autoComplete = async (type: string, search: string): Promise<any> => {
   return { results: response?.data?.results || [] };
 };
 
-const QueryResolver: React.FC<QueryResolverProps> = ({ inputType, schemas, submitHandler }) => {
+const QueryResolver: React.FC<QueryResolverProps> = ({
+  inputType,
+  schemas,
+  submitHandler,
+  enableAutocomplete = true,
+}) => {
   const validation = useForm({
     mode: "onSubmit",
     reValidateMode: "onSubmit",
@@ -65,8 +71,10 @@ const QueryResolver: React.FC<QueryResolverProps> = ({ inputType, schemas, submi
   };
 
   // If there is at least 1 schema that has the ability to autocomplete we will enable it.
+  // enableAutocomplete's default value is true.  We only use it (set it to false) when we want to override and disable autocomplete at the workflow level rather than the schema level.
   const isAutoCompleteEnabled =
-    schemas.filter(schema => schema?.metadata?.search?.autocompleteEnabled === true).length >= 1;
+    schemas.filter(schema => schema?.metadata?.search?.autocompleteEnabled === true).length >= 1 &&
+    enableAutocomplete;
 
   const error = validation.errors?.query;
   return (

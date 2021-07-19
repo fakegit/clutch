@@ -1,5 +1,6 @@
 import { Grid } from "@material-ui/core";
 
+import { userId } from "./AppLayout/user";
 import { Checkbox, CheckboxPanel } from "./Input/checkbox";
 import { Form, FormRow } from "./Input/form";
 import Radio from "./Input/radio";
@@ -16,14 +17,17 @@ import {
 } from "./accordion";
 import ClutchApp from "./AppProvider";
 import { Button, ButtonGroup, ClipboardButton, IconButton } from "./button";
-import { Card, CardContent } from "./card";
+import { Card, CardContent, CardHeader } from "./card";
+import { Chip } from "./chip";
 import Confirmation from "./confirmation";
 import { useWizardContext, WizardContext } from "./Contexts";
 import { Dialog, DialogActions, DialogContent } from "./dialog";
 import { Alert, Error, Hint, Note, NotePanel, Warning } from "./Feedback";
+import { FeatureOff, FeatureOn, SimpleFeatureFlag } from "./flags";
 import { AvatarIcon, StatusIcon } from "./icon";
 import { Link } from "./link";
 import Loadable from "./loading";
+import { useLocation, useNavigate, useParams, useSearchParams } from "./navigation";
 import { client } from "./Network";
 import ExpansionPanel from "./panel";
 import Paper from "./paper";
@@ -41,6 +45,7 @@ import {
   TableRowActions,
   TreeTable,
 } from "./Table";
+import { Typography } from "./typography";
 
 export type { BaseWorkflowProps, WorkflowConfiguration } from "./AppProvider/workflow";
 export type { ButtonProps } from "./button";
@@ -60,8 +65,10 @@ export {
   ButtonGroup,
   Card,
   CardContent,
+  CardHeader,
   Checkbox,
   CheckboxPanel,
+  Chip,
   client,
   ClipboardButton,
   ClutchApp,
@@ -71,6 +78,8 @@ export {
   DialogContent,
   Error,
   ExpansionPanel,
+  FeatureOff,
+  FeatureOn,
   Form,
   FormRow,
   Grid,
@@ -88,6 +97,7 @@ export {
   RadioGroup,
   Resolver,
   Select,
+  SimpleFeatureFlag,
   StatusIcon,
   Step,
   Stepper,
@@ -101,6 +111,12 @@ export {
   Tabs,
   TextField,
   TreeTable,
+  Typography,
+  userId,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
   useWizardContext,
   Warning,
   WizardContext,

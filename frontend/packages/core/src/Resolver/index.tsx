@@ -1,5 +1,4 @@
 import React from "react";
-import { useSearchParams } from "react-router-dom";
 import styled from "@emotion/styled";
 import _ from "lodash";
 
@@ -8,6 +7,7 @@ import { useWizardContext } from "../Contexts";
 import { Error } from "../Feedback";
 import { HorizontalRule } from "../horizontal-rule";
 import Loadable from "../loading";
+import { useSearchParams } from "../navigation";
 import type { ClutchError } from "../Network/errors";
 
 import { fetchResourceSchemas, resolveResource } from "./fetch";
@@ -54,6 +54,10 @@ interface ResolverProps {
    *  API module to resolve lookups against.
    * */
   apiPackage?: object;
+  /**
+   *  enableAutocomplete bool is used to enable/disable autocomplete at the workflow level rather than the schema level.
+   */
+  enableAutocomplete?: boolean;
 }
 
 const Resolver: React.FC<ResolverProps> = ({
@@ -62,6 +66,7 @@ const Resolver: React.FC<ResolverProps> = ({
   onResolve,
   variant = "dual",
   apiPackage,
+  enableAutocomplete = true,
 }) => {
   const [state, dispatch] = useResolverState();
   const { displayWarnings } = useWizardContext();
@@ -116,6 +121,7 @@ const Resolver: React.FC<ResolverProps> = ({
                   setSearchParams({ q: data.query });
                   submitHandler(data);
                 }}
+                enableAutocomplete={enableAutocomplete}
               />
             </>
           )}

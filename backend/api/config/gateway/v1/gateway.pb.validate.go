@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,11 +30,8 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
 )
-
-// define the regex for a UUID once up-front
-var _gateway_uuidPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 // Validate checks the field values on Config with the rules defined in the
 // proto definition for this message. If any rules are violated, an error is returned.
@@ -336,7 +333,7 @@ func (m *Stats) Validate() error {
 	}
 
 	if d := m.GetFlushInterval(); d != nil {
-		dur, err := ptypes.Duration(d)
+		dur, err := d.AsDuration(), d.CheckValid()
 		if err != nil {
 			return StatsValidationError{
 				field:  "FlushInterval",
@@ -386,6 +383,18 @@ func (m *Stats) Validate() error {
 			if err := v.Validate(); err != nil {
 				return StatsValidationError{
 					field:  "StatsdReporter",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *Stats_PrometheusReporter_:
+
+		if v, ok := interface{}(m.GetPrometheusReporter()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return StatsValidationError{
+					field:  "PrometheusReporter",
 					reason: "embedded message failed validation",
 					cause:  err,
 				}
@@ -466,7 +475,7 @@ func (m *Timeouts) Validate() error {
 	}
 
 	if d := m.GetDefault(); d != nil {
-		dur, err := ptypes.Duration(d)
+		dur, err := d.AsDuration(), d.CheckValid()
 		if err != nil {
 			return TimeoutsValidationError{
 				field:  "Default",
@@ -674,6 +683,18 @@ func (m *GatewayOptions) Validate() error {
 		}
 	}
 
+	// no validation rules for MaxResponseSizeBytes
+
+	if v, ok := interface{}(m.GetSecureCookies()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GatewayOptionsValidationError{
+				field:  "SecureCookies",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -819,6 +840,8 @@ func (m *Logger) Validate() error {
 	}
 
 	// no validation rules for Level
+
+	// no validation rules for Namespace
 
 	switch m.Format.(type) {
 
@@ -1360,6 +1383,75 @@ var _ interface {
 	ErrorName() string
 } = Stats_StatsdReporterValidationError{}
 
+// Validate checks the field values on Stats_PrometheusReporter with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, an error is returned.
+func (m *Stats_PrometheusReporter) Validate() error {
+	if m == nil {
+		return nil
+	}
+
+	// no validation rules for HandlerPath
+
+	return nil
+}
+
+// Stats_PrometheusReporterValidationError is the validation error returned by
+// Stats_PrometheusReporter.Validate if the designated constraints aren't met.
+type Stats_PrometheusReporterValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e Stats_PrometheusReporterValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e Stats_PrometheusReporterValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e Stats_PrometheusReporterValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e Stats_PrometheusReporterValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e Stats_PrometheusReporterValidationError) ErrorName() string {
+	return "Stats_PrometheusReporterValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e Stats_PrometheusReporterValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sStats_PrometheusReporter.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = Stats_PrometheusReporterValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = Stats_PrometheusReporterValidationError{}
+
 // Validate checks the field values on Stats_GoRuntimeStats with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, an error is returned.
@@ -1369,7 +1461,7 @@ func (m *Stats_GoRuntimeStats) Validate() error {
 	}
 
 	if d := m.GetCollectionInterval(); d != nil {
-		dur, err := ptypes.Duration(d)
+		dur, err := d.AsDuration(), d.CheckValid()
 		if err != nil {
 			return Stats_GoRuntimeStatsValidationError{
 				field:  "CollectionInterval",
@@ -1543,7 +1635,7 @@ func (m *Timeouts_Entry) Validate() error {
 	}
 
 	if d := m.GetTimeout(); d != nil {
-		dur, err := ptypes.Duration(d)
+		dur, err := d.AsDuration(), d.CheckValid()
 		if err != nil {
 			return Timeouts_EntryValidationError{
 				field:  "Timeout",
