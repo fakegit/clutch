@@ -6,7 +6,7 @@ import type { ErrorProps } from "../index";
 import Error from "../index";
 
 export default {
-  title: "Core/Error",
+  title: "Core/Feedback/Error",
   component: Error,
 } as Meta;
 
@@ -163,4 +163,16 @@ WithWrappedDetails.args = {
     ],
   },
   onRetry: action("retry-click"),
+};
+
+export const WithChildren = Template.bind({});
+WithChildren.args = {
+  subject: {
+    status: {
+      code: 500,
+      text: "Client Error",
+    },
+    message: "Request exceeded timeout of 1 ms",
+  },
+  children: <h4>This message is complimentary to the error</h4>,
 };

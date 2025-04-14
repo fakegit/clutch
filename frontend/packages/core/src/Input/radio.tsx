@@ -1,9 +1,10 @@
 import * as React from "react";
-import styled from "@emotion/styled";
-import type { RadioProps as MuiRadioProps } from "@material-ui/core";
-import { Radio as MuiRadio } from "@material-ui/core";
+import type { RadioProps as MuiRadioProps, Theme } from "@mui/material";
+import { alpha, Radio as MuiRadio } from "@mui/material";
 
-const StyledRadio = styled(MuiRadio)(
+import styled from "../styled";
+
+const StyledRadio = styled(MuiRadio)<{ checked: RadioProps["selected"] }>(
   {
     ".MuiIconButton-label": {
       height: "24px",
@@ -12,50 +13,61 @@ const StyledRadio = styled(MuiRadio)(
       boxSizing: "border-box",
     },
   },
-  props => ({
+  props => ({ theme }: { theme: Theme }) => ({
     "&:hover > .MuiIconButton-label > div": {
-      border: props.checked ? "1px solid #283CD2" : "1px solid #2E45DC",
+      border: props.checked
+        ? `1px solid ${theme.palette.primary[700]}`
+        : `1px solid ${theme.palette.primary[600]}`,
     },
   })
 );
 
-const Icon = styled.div(
-  {
+const Icon = styled("div")<{ $disabled?: MuiRadioProps["disabled"] }>(
+  ({ theme }: { theme: Theme }) => ({
     height: "24px",
     width: "24px",
-    border: "1px solid rgba(13, 16, 48, 0.38)",
+    border: `1px solid ${alpha(theme.palette.secondary[900], 0.38)}`,
     borderRadius: "100px",
     boxSizing: "border-box",
-  },
-  props => ({
-    border: props["data-disabled"] ? "1px solid #DFE2E4" : "1px solid rgba(13, 16, 48, 0.38)",
+  }),
+  props => ({ theme }: { theme: Theme }) => ({
+    border: props.$disabled
+      ? `1px solid ${theme.palette.secondary[200]}`
+      : `1px solid ${alpha(theme.palette.secondary[900], 0.38)}`,
   })
 );
 
-const SelectedIcon = styled.div({
+const SelectedIcon = styled("div")(({ theme }: { theme: Theme }) => ({
   height: "24px",
   width: "24px",
-  background: "#2E45DC",
-  border: "1px solid #283CD2",
+  background: theme.palette.primary[600],
+  border: `1px solid ${theme.palette.primary[700]}`,
   borderRadius: "100px",
   boxSizing: "border-box",
-});
+}));
 
-const SelectedCenter = styled.div({
+const SelectedCenter = styled("div")(({ theme }: { theme: Theme }) => ({
   height: "12px",
   width: "12px",
-  background: "#FFFFFF",
+  background: theme.palette.contrastColor,
   borderRadius: "100px",
   boxSizing: "border-box",
   margin: "5px 5px",
-});
+}));
 
 export interface RadioProps
   extends Pick<MuiRadioProps, "disabled" | "name" | "onChange" | "required" | "value"> {
   selected?: boolean;
 }
 
-const Radio: React.FC<RadioProps> = ({ selected, disabled, name, onChange, required, value }) => {
+const Radio: React.FC<RadioProps> = ({
+  name,
+  onChange,
+  required,
+  value,
+  selected = false,
+  disabled = false,
+}) => {
   return (
     <StyledRadio
       checked={selected}
@@ -65,7 +77,7 @@ const Radio: React.FC<RadioProps> = ({ selected, disabled, name, onChange, requi
         </SelectedIcon>
       }
       color="primary"
-      icon={<Icon data-disabled={disabled} />}
+      icon={<Icon $disabled={disabled} />}
       disabled={disabled}
       name={name}
       onChange={onChange}

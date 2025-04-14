@@ -1,13 +1,14 @@
 import React from "react";
-import { useSearchParams } from "react-router-dom";
 import styled from "@emotion/styled";
 import _ from "lodash";
 
 import { AccordionGroup } from "../accordion";
 import { useWizardContext } from "../Contexts";
-import { Error } from "../Feedback";
+import type { NoteConfig } from "../Feedback";
+import { Error, NotePanel } from "../Feedback";
 import { HorizontalRule } from "../horizontal-rule";
 import Loadable from "../loading";
+import { useSearchParams } from "../navigation";
 import type { ClutchError } from "../Network/errors";
 
 import { fetchResourceSchemas, resolveResource } from "./fetch";
@@ -54,6 +55,14 @@ interface ResolverProps {
    *  API module to resolve lookups against.
    * */
   apiPackage?: object;
+  /**
+   *  enableAutocomplete bool is used to enable/disable autocomplete at the workflow level rather than the schema level.
+   */
+  enableAutocomplete?: boolean;
+  /**
+   *  Notes can be used to pass in extra information to the user about the workflow
+   */
+  notes?: NoteConfig[];
 }
 
 const Resolver: React.FC<ResolverProps> = ({
@@ -62,6 +71,8 @@ const Resolver: React.FC<ResolverProps> = ({
   onResolve,
   variant = "dual",
   apiPackage,
+  enableAutocomplete = true,
+  notes = [],
 }) => {
   const [state, dispatch] = useResolverState();
   const { displayWarnings } = useWizardContext();
@@ -106,6 +117,7 @@ const Resolver: React.FC<ResolverProps> = ({
       ) : (
         <Loadable variant="overlay" isLoading={state.resolverLoading}>
           {state.resolverFetchError && <Error subject={state.resolverFetchError} />}
+          <NotePanel notes={notes} />
           {(variant === "dual" || variant === "query") && (
             <>
               <SchemaLabel>Search</SchemaLabel>
@@ -116,6 +128,7 @@ const Resolver: React.FC<ResolverProps> = ({
                   setSearchParams({ q: data.query });
                   submitHandler(data);
                 }}
+                enableAutocomplete={enableAutocomplete}
               />
             </>
           )}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap/zaptest"
 
 	sourcecontrolv1 "github.com/lyft/clutch/backend/api/sourcecontrol/v1"
@@ -53,7 +53,6 @@ var containsTests = []struct {
 
 func TestContains(t *testing.T) {
 	for idx, tt := range containsTests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 

@@ -2,15 +2,21 @@ package mux
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	gatewayv1 "github.com/lyft/clutch/backend/api/config/gateway/v1"
+	healthcheckv1 "github.com/lyft/clutch/backend/api/healthcheck/v1"
 )
 
 func TestCopyHTTPResponse(t *testing.T) {
@@ -22,7 +28,7 @@ func TestCopyHTTPResponse(t *testing.T) {
 		Status:     http.StatusText(status),
 		StatusCode: status,
 		Header:     headers,
-		Body:       ioutil.NopCloser(strings.NewReader(body)),
+		Body:       io.NopCloser(strings.NewReader(body)),
 	}
 
 	rec := httptest.NewRecorder()
@@ -120,5 +126,176 @@ func TestCustomHeaderMatcher(t *testing.T) {
 		result, ok := customHeaderMatcher(test.key)
 		assert.Equal(t, test.expectedKey, result)
 		assert.Equal(t, test.expectedBool, ok)
+	}
+}
+
+func TestCustomErrorHandler(t *testing.T) {
+	ctx := context.Background()
+	mux := runtime.NewServeMux()
+	marshaler := &runtime.JSONPb{}
+
+	{
+		// Business as usual.
+		req := &http.Request{}
+		rec := httptest.NewRecorder()
+		w := mockResponseWriter{ResponseWriter: rec}
+		err := status.Error(codes.NotFound, "not found")
+		customErrorHandler(ctx, mux, marshaler, w, req, err)
+		assert.Equal(t, 404, rec.Code)
+	}
+	{
+		// Auth redirect for browser 401.
+		uri := "https://example.com/bar?foo=bar"
+		req, _ := http.NewRequest("GET", uri, nil)
+		req.RequestURI = uri
+		req.Header.Add("Accept", "text/html")
+		rec := httptest.NewRecorder()
+		w := mockResponseWriter{ResponseWriter: rec}
+		err := status.Error(codes.Unauthenticated, "not found")
+		customErrorHandler(ctx, mux, marshaler, w, req, err)
+		assert.Equal(t, 302, rec.Code)
+		assert.Contains(t, rec.Header().Get("Location"), url.QueryEscape(uri))
+	}
+	{
+		// No auth redirect for non-browser 401.
+		uri := "https://example.com/bar?foo=bar"
+		req, _ := http.NewRequest(http.MethodGet, uri, nil)
+		req.RequestURI = uri
+		rec := httptest.NewRecorder()
+		w := mockResponseWriter{ResponseWriter: rec}
+		err := status.Error(codes.Unauthenticated, "not found")
+		customErrorHandler(ctx, mux, marshaler, w, req, err)
+		assert.Equal(t, 401, rec.Code)
+	}
+}
+
+func TestCustomResponseForwarder(t *testing.T) {
+	ctx := runtime.NewServerMetadataContext(context.Background(), runtime.ServerMetadata{})
+	rec := httptest.NewRecorder()
+	w := mockResponseWriter{ResponseWriter: rec}
+	err := newCustomResponseForwarder(false)(ctx, w, &healthcheckv1.HealthcheckResponse{})
+	assert.NoError(t, err)
+	assert.Equal(t, 200, rec.Code)
+}
+
+func TestCustomResponseForwarderAuthCookies(t *testing.T) {
+	ctx := runtime.NewServerMetadataContext(context.Background(), runtime.ServerMetadata{
+		HeaderMD: metadata.Pairs(
+			"Set-Cookie-Token", "myToken",
+			"Location", "https://example.com",
+		),
+	})
+
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "https://example.com/bar", nil)
+	req.Header.Add("Accept", "text/html") // Is browser.
+	w := &mockResponseWriter{ResponseWriter: rec, req: req}
+	err := newCustomResponseForwarder(true)(ctx, w, &healthcheckv1.HealthcheckResponse{})
+	assert.NoError(t, err)
+	assert.Equal(t, 302, rec.Code)
+	assert.Equal(t, "token=myToken; Path=/; Secure", rec.Header().Get("Set-Cookie"))
+	assert.Equal(t, "https://example.com", rec.Header().Get("Location"))
+}
+
+func TestCustomResponseForwarderLocationStatusOverrideAndRefreshToken(t *testing.T) {
+	ctx := runtime.NewServerMetadataContext(context.Background(), runtime.ServerMetadata{
+		HeaderMD: metadata.Pairs(
+			"Set-Cookie-Token", "myToken",
+			"Set-Cookie-Refresh-Token", "myRefreshToken",
+			"Location", "https://example.com",
+			"Location-Status", "304",
+		),
+	})
+
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "https://example.com/bar", nil)
+	req.Header.Add("Accept", "text/html") // Is browser.
+	w := &mockResponseWriter{ResponseWriter: rec, req: req}
+	err := newCustomResponseForwarder(true)(ctx, w, &healthcheckv1.HealthcheckResponse{})
+	assert.NoError(t, err)
+	assert.Equal(t, 304, rec.Code)
+	assert.Contains(t, rec.Header().Values("Set-Cookie"), "token=myToken; Path=/; Secure")
+	assert.Contains(t, rec.Header().Values("Set-Cookie"), "refreshToken=myRefreshToken; Path=/v1/authn/login; HttpOnly; Secure")
+	assert.Equal(t, "https://example.com", rec.Header().Get("Location"))
+}
+
+func TestCustomResponseForwarderAuthCookiesNonBrowser(t *testing.T) {
+	ctx := runtime.NewServerMetadataContext(context.Background(), runtime.ServerMetadata{
+		HeaderMD: metadata.Pairs(
+			"Location", "https://example.com",
+		),
+	})
+
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "https://example.com/bar", nil)
+	req.Header.Add("Accept", "*/*") // Not a browser!
+	w := &mockResponseWriter{ResponseWriter: rec, req: req}
+	err := newCustomResponseForwarder(false)(ctx, w, &healthcheckv1.HealthcheckResponse{})
+	assert.NoError(t, err)
+	assert.Equal(t, 200, rec.Code)
+	assert.Equal(t, "", rec.Header().Get("Location"))
+}
+
+func TestRoutableStaticPathEnabled(t *testing.T) {
+	assetHandler := &assetHandler{
+		assetCfg: &gatewayv1.Assets{
+			RoutableStaticPath: true,
+		},
+	}
+
+	testCases := []struct {
+		id       string
+		urlPath  string
+		expected bool
+	}{
+		{
+			id:       "should not route /",
+			urlPath:  "/",
+			expected: false,
+		},
+		{
+			id:       "should route static assets",
+			urlPath:  "/static/main.js",
+			expected: false,
+		},
+		{
+			id:       "should route static assets",
+			urlPath:  "/static/main.css",
+			expected: false,
+		},
+		{
+			id:       "should serve the base route",
+			urlPath:  "/static",
+			expected: true,
+		},
+		{
+			id:       "should serve the base route with a trailing slash",
+			urlPath:  "/static/",
+			expected: true,
+		},
+		{
+			id:       "should serve the base route with longer paths",
+			urlPath:  "/static/hello",
+			expected: true,
+		},
+		{
+			id:       "should serve the base route with query params",
+			urlPath:  "/static/hello?foo=bar",
+			expected: true,
+		},
+		{
+			id:       "should not route apis",
+			urlPath:  "/v1/getstatic/hello",
+			expected: false,
+		},
+		{
+			id:       "should not route apis",
+			urlPath:  "/v1/staticapi/hello",
+			expected: false,
+		},
+	}
+
+	for _, test := range testCases {
+		assert.Equal(t, test.expected, assetHandler.isStaticPathRoutable(test.urlPath), test.id)
 	}
 }

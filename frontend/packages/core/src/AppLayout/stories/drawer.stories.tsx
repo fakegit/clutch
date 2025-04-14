@@ -1,14 +1,15 @@
 import * as React from "react";
-import { MemoryRouter } from "react-router";
-import { Grid } from "@material-ui/core";
+import { MemoryRouter } from "react-router-dom";
+import { Grid } from "@mui/material";
 import type { Meta } from "@storybook/react";
 
+import { UserPreferencesProvider } from "../../Contexts";
 import { ApplicationContext } from "../../Contexts/app-context";
 import Drawer from "../drawer";
-import Header from "../header";
+import { Header } from "../header";
 
 export default {
-  title: "Core/AppLayout/Drawer",
+  title: "Core/Layout/Drawer",
   component: Drawer,
   decorators: [
     StoryFn => (
@@ -19,6 +20,7 @@ export default {
     StoryFn => {
       return (
         <ApplicationContext.Provider
+          // eslint-disable-next-line react/jsx-no-constructed-context-values
           value={{
             workflows: [
               {
@@ -26,9 +28,10 @@ export default {
                 displayName: "EC2",
                 group: "AWS",
                 path: "ec2",
+                icon: { path: "" },
                 routes: [
                   {
-                    component: () => <></>,
+                    component: () => null,
                     componentProps: { resolverType: "clutch.aws.ec2.v1.Instance" },
                     description: "Terminate an EC2 instance.",
                     displayName: "Terminate Instance",
@@ -37,7 +40,7 @@ export default {
                     trending: true,
                   },
                   {
-                    component: () => <></>,
+                    component: () => null,
                     componentProps: { resolverType: "clutch.aws.ec2.v1.AutoscalingGroup" },
                     description: "Resize an autoscaling group.",
                     displayName: "Resize Autoscaling Group",
@@ -62,8 +65,10 @@ export default {
 export const Primary = () => <Drawer />;
 
 export const WithHeader = () => (
-  <Grid direction="column">
-    <Header />
-    <Drawer />
-  </Grid>
+  <UserPreferencesProvider>
+    <Grid container direction="column">
+      <Header />
+      <Drawer />
+    </Grid>
+  </UserPreferencesProvider>
 );

@@ -1,19 +1,11 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`Destructive Button component renders correctly 1`] = `
-"<Styled(WithStyles(ForwardRef(Button))) variant=\\"contained\\" disableElevation={true} data-color={{...}}>
-  test
-</Styled(WithStyles(ForwardRef(Button)))>"
-`;
+exports[`Destructive Button Component 1`] = `"<button class=\\"MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-disableElevation css-1i6z5sh-MuiButtonBase-root-MuiButton-root\\" tabindex=\\"0\\" type=\\"button\\" palette=\\"[object Object]\\">test</button>"`;
 
-exports[`Neutral Button component renders correctly 1`] = `
-"<Styled(WithStyles(ForwardRef(Button))) variant=\\"contained\\" disableElevation={true} data-color={{...}}>
-  test
-</Styled(WithStyles(ForwardRef(Button)))>"
-`;
+exports[`Large Button Component 1`] = `"<button class=\\"MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeLarge MuiButton-containedSizeLarge MuiButton-disableElevation css-bb0am6-MuiButtonBase-root-MuiButton-root\\" tabindex=\\"0\\" type=\\"button\\" palette=\\"[object Object]\\">test</button>"`;
 
-exports[`Primary Button component renders correctly 1`] = `
-"<Styled(WithStyles(ForwardRef(Button))) variant=\\"contained\\" disableElevation={true} data-color={{...}}>
-  test
-</Styled(WithStyles(ForwardRef(Button)))>"
-`;
+exports[`Neutral Button Component 1`] = `"<button class=\\"MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-disableElevation css-ofve1n-MuiButtonBase-root-MuiButton-root\\" tabindex=\\"0\\" type=\\"button\\" palette=\\"[object Object]\\">test</button>"`;
+
+exports[`Primary Button Component 1`] = `"<button class=\\"MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-disableElevation css-61rao6-MuiButtonBase-root-MuiButton-root\\" tabindex=\\"0\\" type=\\"button\\" palette=\\"[object Object]\\">test</button>"`;
+
+exports[`Small Button Component 1`] = `"<button class=\\"MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-disableElevation css-6xod7i-MuiButtonBase-root-MuiButton-root\\" tabindex=\\"0\\" type=\\"button\\" palette=\\"[object Object]\\">test</button>"`;

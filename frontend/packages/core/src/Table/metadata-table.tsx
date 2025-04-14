@@ -1,53 +1,67 @@
 import * as React from "react";
+import type { FieldValues, UseFormReturn } from "react-hook-form";
 import { useForm } from "react-hook-form";
-import styled from "@emotion/styled";
 import { DevTool } from "@hookform/devtools";
 import { yupResolver } from "@hookform/resolvers/yup";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import {
+  alpha,
   Grid as MuiGrid,
+  StandardTextFieldProps,
   Table as MuiTable,
   TableBody as MuiTableBody,
   TableCell as MuiTableCell,
   TableContainer as MuiTableContainer,
   TableRow,
-} from "@material-ui/core";
-import ChevronRightIcon from "@material-ui/icons/ChevronRight";
+  Theme,
+} from "@mui/material";
 import _ from "lodash";
 import type { BaseSchema } from "yup";
 import { object } from "yup";
 
 import { useWizardContext } from "../Contexts";
-import TextField from "../Input/text-field";
+import type { NoteConfig } from "../Feedback";
+import { Tooltip } from "../Feedback/tooltip";
+import { TextField } from "../Input/text-field";
+import styled from "../styled";
 
 interface RowData {
   input?: {
     key?: string;
     type?: string;
     validation?: BaseSchema<unknown>;
+    warning?: NoteConfig;
+  };
+  textFieldLabels?: {
+    disabledField: string;
+    updatedField: string;
   };
   name: string;
   value: unknown;
+  disabledFieldTooltip?: string;
 }
 
 interface IdentifiableRowData extends RowData {
   id: string;
 }
 
-const TableContainer = styled(MuiTableContainer)(
+const TableContainer = styled(MuiTableContainer)<{
+  $maxHeight?: MetadataTableProps["maxHeight"];
+}>(
   {
     borderWidth: "0",
     border: "0",
   },
   props => ({
-    maxHeight: props["data-max-height"] || "fit-content",
+    maxHeight: props.$maxHeight || "fit-content",
   })
 );
 
-const Table = styled(MuiTable)({
-  border: "1px solid rgba(13, 16, 48, 0.12)",
+const Table = styled(MuiTable)(({ theme }: { theme: Theme }) => ({
+  border: `1px solid ${alpha(theme.palette.secondary[900], 0.12)}`,
   borderRadius: "4px",
   borderCollapse: "unset",
-});
+}));
 
 const TableBody = styled(MuiTableBody)({
   "tr:first-of-type > td:first-of-type": {
@@ -67,13 +81,13 @@ const TableBody = styled(MuiTableBody)({
   },
 });
 
-const TableCell = styled(MuiTableCell)({
-  color: "#0D1030",
+const TableCell = styled(MuiTableCell)(({ theme }: { theme: Theme }) => ({
+  color: theme.palette.secondary[900],
   fontSize: "14px",
   fontWeight: "normal",
   height: "48px",
-  padding: "0 16px",
-});
+  padding: "8px 16px",
+}));
 
 const Grid = styled(MuiGrid)({
   display: "flex",
@@ -86,11 +100,8 @@ const Grid = styled(MuiGrid)({
     width: "100px",
     alignSelf: "center",
   },
-  ".MuiFormControl-root .MuiFormHelperText-root.Mui-error": {
+  ".MuiFormControl-root .MuiFormHelperText-root": {
     flex: 1,
-  },
-  ".textfield-disabled .MuiFormControl-root .MuiInputBase-root": {
-    width: "41px",
   },
   ".textfield-disabled .MuiInput-input": {
     padding: "0px",
@@ -98,11 +109,11 @@ const Grid = styled(MuiGrid)({
   },
 });
 
-const KeyCellContainer = styled(TableCell)({
+const KeyCellContainer = styled(TableCell)(({ theme }: { theme: Theme }) => ({
   width: "45%",
-  background: "rgba(13, 16, 48, 0.03)",
+  background: alpha(theme.palette.secondary[900], 0.03),
   fontWeight: 500,
-});
+}));
 
 interface KeyCellProps {
   data: IdentifiableRowData;
@@ -134,11 +145,44 @@ const ImmutableRow: React.FC<ImmutableRowProps> = ({ data }) => {
 interface MutableRowProps extends ImmutableRowProps {
   onUpdate: (event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => void;
   onReturn: () => void;
-  validation: any;
+  validation: UseFormReturn<FieldValues, object>;
 }
 
+// TODO (maybe): instead of a disabled text field and editable text field, remove disabled field and have a reset icon next to text field
+// to reset field to the default value
 const MutableRow: React.FC<MutableRowProps> = ({ data, onUpdate, onReturn, validation }) => {
-  const error = validation.errors?.[data.name];
+  const error = validation?.formState?.errors?.[data.name];
+  const { warning } = data.input;
+
+  // intercept the update callback to prevent updates if there are form errors present
+  // based on the validation.
+  const updateCallback = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) =>
+    error ? () => {} : onUpdate(e);
+
+  // get helper text in case we need info or success cases
+  const getHelperText = (): String => error?.message || warning?.text || "";
+
+  // get the color if there is an error or warning
+  // adding more cases if we need info or success cases
+  const getTextFieldColor = (): StandardTextFieldProps["color"] | undefined => {
+    if (error) {
+      return "error";
+    }
+    if (warning) {
+      return "warning";
+    }
+    return undefined;
+  };
+
+  const disabledTextFieldComponent = (
+    <TextField
+      disabled
+      id={data.id}
+      name={data.name}
+      defaultValue={data.value}
+      label={data.textFieldLabels?.disabledField}
+    />
+  );
 
   return (
     <TableRow key={data.id}>
@@ -146,20 +190,25 @@ const MutableRow: React.FC<MutableRowProps> = ({ data, onUpdate, onReturn, valid
       <TableCell>
         <Grid>
           <div className="textfield-disabled">
-            <TextField disabled id={data.id} name={data.name} defaultValue={data.value} />
+            {/* // In the case where a disabledFieldTooltip is not provided, the value itself will be the tooltip */}
+            <Tooltip title={data.disabledFieldTooltip ?? data.value}>
+              {disabledTextFieldComponent}
+            </Tooltip>
           </div>
           <ChevronRightIcon />
           <TextField
             id={data.id}
             name={data.name}
+            label={data.textFieldLabels?.updatedField}
             defaultValue={data.value}
             type={data?.input?.type}
-            onChange={onUpdate}
+            onChange={updateCallback}
             onReturn={onReturn}
-            onFocus={onUpdate}
-            inputRef={validation.register}
-            helperText={error?.message || ""}
+            onFocus={updateCallback}
+            helperText={getHelperText()}
             error={!!error || false}
+            color={getTextFieldColor()}
+            formRegistration={validation.register}
           />
         </Grid>
       </TableCell>
@@ -207,7 +256,7 @@ export const MetadataTable: React.FC<MetadataTableProps> = ({
   }, []);
 
   return (
-    <TableContainer data-max-height={maxHeight}>
+    <TableContainer $maxHeight={maxHeight}>
       {process.env.REACT_APP_DEBUG_FORMS && onUpdate !== undefined && <DevTool control={control} />}
       <Table>
         <TableBody>
@@ -215,7 +264,9 @@ export const MetadataTable: React.FC<MetadataTableProps> = ({
             return row.input !== undefined && onUpdate ? (
               <MutableRow
                 data={row}
-                onUpdate={e => onUpdate(e.target.id, e.target.value)}
+                onUpdate={e => {
+                  onUpdate(e.target.id, e.target.value);
+                }}
                 onReturn={onSubmit}
                 key={row.id}
                 validation={validation}

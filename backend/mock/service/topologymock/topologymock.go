@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -34,19 +34,19 @@ func (s *svc) Search(context.Context, *topologyv1.SearchRequest) ([]*topologyv1.
 			Id: "pod-123",
 			Pb: &any.Any{},
 			Metadata: map[string]*structpb.Value{
-				"label": &structpb.Value{},
+				"label": {},
 			},
 		},
 	}, "1", nil
 }
 
-func (s *svc) Autocomplete(ctx context.Context, typeURL, search string, limit uint64) ([]*topologyv1.Resource, error) {
+func (s *svc) Autocomplete(ctx context.Context, typeURL, search string, limit uint64, caseSensitive bool) ([]*topologyv1.Resource, error) {
 	return []*topologyv1.Resource{
 		{
 			Id: "autocomplete-result",
 			Pb: &any.Any{},
 			Metadata: map[string]*structpb.Value{
-				"label": &structpb.Value{},
+				"label": {},
 			},
 		},
 	}, nil

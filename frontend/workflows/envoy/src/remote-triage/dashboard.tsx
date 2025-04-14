@@ -1,22 +1,22 @@
 import React from "react";
 import type { clutch as IClutch } from "@clutch-sh/api";
-import { Grid, MetadataTable, Paper } from "@clutch-sh/core";
-import styled from "@emotion/styled";
-import { Pie } from "@nivo/pie";
+import { Grid, MetadataTable, Paper, styled } from "@clutch-sh/core";
+import type { Theme } from "@mui/material";
+import { Cell, Pie, PieChart } from "recharts";
 
-const SummaryCardTitle = styled.div({
+const SummaryCardTitle = styled("div")(({ theme }: { theme: Theme }) => ({
   fontWeight: 600,
   fontSize: "14px",
-  color: "#0D1030",
-});
+  color: theme.palette.secondary[900],
+}));
 
-const SummaryCardBody = styled.div(
+const SummaryCardBody = styled("div")<{ $color?: string }>(
   {
     fontWeight: "bold",
     fontSize: "20px",
   },
-  props => ({
-    color: props.color ? props.color : "#3548D4",
+  props => ({ theme }: { theme: Theme }) => ({
+    color: props.$color ? props.$color : theme.palette.primary[600],
   })
 );
 
@@ -24,12 +24,12 @@ const FeaturedSummaryContainer = styled(Grid)({
   flexBasis: "60%",
 });
 
-const PieContainer = styled.div({
+const PieContainer = styled("div")({
   display: "flex",
   justifyContent: "space-evenly",
 });
 
-const PieLegendContainer = styled.div({
+const PieLegendContainer = styled("div")({
   display: "flex",
   textAlign: "center",
   justifyContent: "space-evenly",
@@ -45,24 +45,31 @@ interface FeaturedSummaryProps {
   }[];
 }
 
+const PIECHART_OUTER_RADIUS = 100;
+const PIECHART_INNER_RADIUS = 70;
+const PIECHART_ANIMATION_DURATION_MS = 200;
+
 const FeaturedSummary = ({ summary }: { summary: FeaturedSummaryProps }) => {
-  const values = summary?.data?.map(d => d.value);
-  const total = values.reduce((t, value) => t + value);
+  const total = (summary?.data || []).reduce((t, { value = 0 }) => t + value, 0);
   return (
     <FeaturedSummaryContainer item>
       <Paper>
         <SummaryCardTitle>{summary.name}</SummaryCardTitle>
         <PieContainer>
-          <Pie
-            data={summary?.data || []}
-            height={215}
-            width={215}
-            innerRadius={0.75}
-            colors={{ datum: "data.color" }}
-            enableSliceLabels={false}
-            enableRadialLabels={false}
-            isInteractive={false}
-          />
+          <PieChart width={PIECHART_OUTER_RADIUS * 2} height={PIECHART_OUTER_RADIUS * 2}>
+            <Pie
+              data={summary?.data || []}
+              dataKey="value"
+              innerRadius={PIECHART_INNER_RADIUS}
+              outerRadius={PIECHART_OUTER_RADIUS}
+              legendType="none"
+              animationDuration={PIECHART_ANIMATION_DURATION_MS}
+            >
+              {summary?.data?.map(d => (
+                <Cell key={`cell-${d.id}`} fill={d.color} />
+              ))}
+            </Pie>
+          </PieChart>
           <PieLegendContainer>
             <div>
               <SummaryCardTitle>Total</SummaryCardTitle>
@@ -71,7 +78,7 @@ const FeaturedSummary = ({ summary }: { summary: FeaturedSummaryProps }) => {
             {summary?.data?.map(d => (
               <div key={d.id}>
                 <SummaryCardTitle>{d.id}</SummaryCardTitle>
-                <SummaryCardBody color={d.color}>{d.value}</SummaryCardBody>
+                <SummaryCardBody $color={d.color}>{d.value}</SummaryCardBody>
               </div>
             ))}
           </PieLegendContainer>
@@ -86,9 +93,9 @@ const SummariesContainer = styled(Grid)({
   flexBasis: "40%",
 });
 
-const InformationContainer = styled.div({
-  padding: "16px 0",
-});
+const InformationContainer = styled("div")(({ theme }: { theme: Theme }) => ({
+  padding: theme.spacing("base", "none"),
+}));
 
 interface DashboardProps {
   serverInfo: IClutch.envoytriage.v1.IServerInfo;
@@ -113,9 +120,15 @@ const Dashboard = ({ serverInfo, featuredSummary, summaries }: DashboardProps) =
 
   return (
     <div>
-      <Grid container direction="row" justify="space-evenly" wrap="nowrap" spacing={1}>
+      <Grid container direction="row" justifyContent="space-evenly" wrap="nowrap" spacing={1}>
         <FeaturedSummary summary={featuredSummary} />
-        <SummariesContainer item container direction="column" justify="space-evenly" spacing={1}>
+        <SummariesContainer
+          item
+          container
+          direction="column"
+          justifyContent="space-evenly"
+          spacing={1}
+        >
           {summaries.map(summary => (
             <Grid item key={summary.name}>
               <Paper>

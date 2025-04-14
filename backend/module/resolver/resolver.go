@@ -10,7 +10,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -190,7 +190,7 @@ func (r *resolverAPI) Autocomplete(ctx context.Context, req *resolverv1.Autocomp
 
 	limit := resolver.DefaultAutocompleteLimit
 	if req.Limit > 0 {
-		limit = int(req.Limit)
+		limit = int(req.Limit) //nolint
 	}
 
 	// Iterate through all of the available resolvers & schemas to find the one requested
@@ -198,7 +198,7 @@ func (r *resolverAPI) Autocomplete(ctx context.Context, req *resolverv1.Autocomp
 	for _, res := range resolver.Registry {
 		resSchema := res.Schemas()
 		if _, ok := resSchema[req.Want]; ok {
-			resolverResults, err := res.Autocomplete(ctx, req.Want, req.Search, req.Limit)
+			resolverResults, err := res.Autocomplete(ctx, req.Want, req.Search, req.Limit, req.CaseSensitive)
 			if err != nil {
 				return nil, err
 			}

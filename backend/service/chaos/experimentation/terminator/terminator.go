@@ -1,5 +1,9 @@
 package terminator
 
+// <!-- START clutchdoc -->
+// description: Chaos Experimentation Framework - Performs termination of experiments based on certain given criteria
+// <!-- END clutchdoc -->
+
 import (
 	"context"
 	"errors"
@@ -7,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -35,7 +39,7 @@ type CriterionFactory interface {
 type TerminationCriterion interface {
 	// ShouldTerminate determines whether the provided experiment should be terminated.
 	// To signal that termination should occur, return a non-empty string with a nil error.
-	ShouldTerminate(experiment *experimentstore.Experiment, experimentConfig proto.Message) (string, error)
+	ShouldTerminate(experiment *experimentstore.Experiment) (string, error)
 }
 
 func New(cfg *anypb.Any, logger *zap.Logger, scope tally.Scope) (service.Service, error) {
@@ -97,7 +101,6 @@ func NewMonitor(cfg *anypb.Any, logger *zap.Logger, scope tally.Scope) (*Monitor
 		criterionEvaluationSuccessCount: scope.Counter("criterion_success"),
 		criterionEvaluationFailureCount: scope.Counter("criterion_failure"),
 		terminationCount:                scope.Counter("terminations"),
-		marshallingErrorCount:           scope.Counter("unpack_error"),
 	}, nil
 }
 
@@ -114,7 +117,6 @@ type Monitor struct {
 	criterionEvaluationSuccessCount tally.Counter
 	criterionEvaluationFailureCount tally.Counter
 	terminationCount                tally.Counter
-	marshallingErrorCount           tally.Counter
 }
 
 func (m *Monitor) Run(ctx context.Context) {
@@ -157,12 +159,14 @@ func (m *Monitor) Run(ctx context.Context) {
 	}
 }
 
-// Iterates over all the provided experiments, spawning a goroutine to montior each experiment that doesn't already have
+// Iterates over all the provided experiments, spawning a goroutine to monitor each experiment that doesn't already have
 // a monitoring routine. Returns a set containing all the active experiment ids for further processing.
 func (m *Monitor) monitorNewExperiments(es []*experimentstore.Experiment, trackedExperiments map[string]context.CancelFunc, criteria []TerminationCriterion) map[string]struct{} {
 	// For each active experiment, create a monitoring goroutine if necessary.
 	activeExperiments := map[string]struct{}{}
 	for _, e := range es {
+		ee := e
+
 		activeExperiments[e.Run.Id] = struct{}{}
 		if _, ok := trackedExperiments[e.Run.Id]; !ok {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -171,7 +175,7 @@ func (m *Monitor) monitorNewExperiments(es []*experimentstore.Experiment, tracke
 			m.activeMonitoringRoutines.inc()
 			go func() {
 				defer m.activeMonitoringRoutines.dec()
-				m.monitorSingleExperiment(ctx, e, criteria)
+				m.monitorSingleExperiment(ctx, ee, criteria)
 			}()
 		}
 	}
@@ -181,16 +185,6 @@ func (m *Monitor) monitorNewExperiments(es []*experimentstore.Experiment, tracke
 func (m *Monitor) monitorSingleExperiment(ctx context.Context, e *experimentstore.Experiment, criteria []TerminationCriterion) {
 	ticker := time.NewTicker(m.perExperimentCheckInterval)
 	terminated := false
-
-	// TODO(snowp): I suspect that we might run into issues here if we try to unpack an "old" proto
-	// which is no longer linked into the program due to how the type registry works, but this should
-	// be rare enough that logging an error is probably fine.
-	unpackedConfig, err := anypb.UnmarshalNew(e.Config.Config, proto.UnmarshalOptions{})
-	if err != nil {
-		m.log.Errorw("failed to unmarshal experiment", "runId", e.Run.Id)
-		m.marshallingErrorCount.Inc(1)
-		return
-	}
 
 	for {
 		select {
@@ -203,7 +197,7 @@ func (m *Monitor) monitorSingleExperiment(ctx context.Context, e *experimentstor
 				continue
 			}
 			for _, c := range criteria {
-				terminationReason, err := c.ShouldTerminate(e, unpackedConfig)
+				terminationReason, err := c.ShouldTerminate(e)
 				// TODO(snowp): The logs here might get spammy, rate limit or terminate montioring routine somehow?
 				if err != nil {
 					m.criterionEvaluationFailureCount.Inc(1)

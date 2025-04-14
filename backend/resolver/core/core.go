@@ -6,12 +6,13 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	envoyv1 "github.com/lyft/clutch/backend/api/core/envoy/v1"
+	projectv1 "github.com/lyft/clutch/backend/api/core/project/v1"
 	resolverv1 "github.com/lyft/clutch/backend/api/resolver/v1"
 	"github.com/lyft/clutch/backend/gateway/meta"
 	"github.com/lyft/clutch/backend/resolver"
@@ -22,9 +23,11 @@ import (
 var Name = "clutch.resolver.core"
 
 var typeURLEnvoyCluster = meta.TypeURL((*envoyv1.Cluster)(nil))
+var typeURLProject = meta.TypeURL((*projectv1.Project)(nil))
 
 var typeSchemas = resolver.TypeURLToSchemaMessagesMap{
 	typeURLEnvoyCluster: {},
+	typeURLProject:      {},
 }
 
 func New(cfg *any.Any, logger *zap.Logger, scope tally.Scope) (resolver.Resolver, error) {
@@ -65,7 +68,7 @@ func (r *res) Search(ctx context.Context, typeURL, query string, limit uint32) (
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
-func (r *res) Autocomplete(ctx context.Context, typeURL, search string, limit uint64) ([]*resolverv1.AutocompleteResult, error) {
+func (r *res) Autocomplete(ctx context.Context, typeURL, search string, limit uint64, caseSensitive bool) ([]*resolverv1.AutocompleteResult, error) {
 	if r.topology == nil {
 		return nil, status.Error(codes.Internal, "to use the autocomplete api you must first setup the topology service")
 	}
@@ -75,7 +78,7 @@ func (r *res) Autocomplete(ctx context.Context, typeURL, search string, limit ui
 		resultLimit = limit
 	}
 
-	results, err := r.topology.Autocomplete(ctx, typeURL, search, resultLimit)
+	results, err := r.topology.Autocomplete(ctx, typeURL, search, resultLimit, caseSensitive)
 	if err != nil {
 		return nil, err
 	}

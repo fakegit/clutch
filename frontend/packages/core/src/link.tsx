@@ -1,31 +1,50 @@
 import * as React from "react";
-import styled from "@emotion/styled";
-import type { LinkProps as MuiLinkProps } from "@material-ui/core";
-import { Link as MuiLink } from "@material-ui/core";
+import type { LinkProps as MuiLinkProps, Theme } from "@mui/material";
+import { Link as MuiLink } from "@mui/material";
 
-const StyledLink = styled(MuiLink)(
-  {
+import styled from "./styled";
+
+type TextTransform = "none" | "capitalize" | "uppercase" | "lowercase" | "initial" | "inherit";
+
+const StyledLink = styled(MuiLink)<{
+  $textTransform: LinkProps["textTransform"];
+  $whiteSpace: LinkProps["whiteSpace"];
+}>(
+  ({ theme }: { theme: Theme }) => ({
     display: "flex",
     width: "100%",
     maxWidth: "fit-content",
     fontSize: "14px",
-    color: "#3548D4",
-  },
+    color: theme.palette.primary[600],
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }),
   props => ({
-    textTransform: props["data-text-transform"],
+    textTransform: props.$textTransform,
+    ...(props.$whiteSpace ? { whiteSpace: props.$whiteSpace } : {}),
   })
 );
 
 export interface LinkProps extends Pick<MuiLinkProps, "href" | "children"> {
-  textTransform?: "none" | "capitalize" | "uppercase" | "lowercase" | "initial" | "inherit";
+  textTransform?: TextTransform;
+  whiteSpace?: React.CSSProperties["whiteSpace"];
+  target?: React.AnchorHTMLAttributes<HTMLAnchorElement>["target"];
 }
 
-export const Link = ({ href, textTransform = "none", children, ...props }: LinkProps) => (
+export const Link = ({
+  href,
+  textTransform = "none",
+  target = "_blank",
+  children,
+  whiteSpace,
+  ...props
+}: LinkProps) => (
   <StyledLink
     href={href}
-    target="_blank"
+    target={target}
     rel="noopener noreferrer"
-    data-text-transform={textTransform}
+    $textTransform={textTransform}
+    $whiteSpace={whiteSpace}
     {...props}
   >
     {children}

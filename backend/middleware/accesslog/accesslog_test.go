@@ -25,7 +25,7 @@ func TestNew(t *testing.T) {
 		{config: nil},
 		{config: &accesslogv1.Config{
 			StatusCodeFilters: []*accesslogv1.Config_StatusCodeFilter{
-				&accesslogv1.Config_StatusCodeFilter{
+				{
 					FilterType: &accesslogv1.Config_StatusCodeFilter_Equals{
 						Equals: 1,
 					},
@@ -36,7 +36,6 @@ func TestNew(t *testing.T) {
 	}
 
 	for idx, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 

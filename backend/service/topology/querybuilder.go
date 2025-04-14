@@ -40,7 +40,7 @@ func paginatedQueryBuilder(
 ) (sq.SelectBuilder, uint64, error) {
 	queryLimit := queryDefaultLimit
 	if limit > maxResultLimit {
-		return sq.SelectBuilder{}, 0, status.Error(codes.InvalidArgument, "maximum query limit is 1000")
+		return sq.SelectBuilder{}, 0, status.Error(codes.InvalidArgument, fmt.Sprintf("maximum query limit is %d", maxResultLimit))
 	} else if limit > 0 {
 		queryLimit = limit
 	}
@@ -104,8 +104,16 @@ func filterQueryBuilder(query sq.SelectBuilder, f *topologyv1.SearchRequest_Filt
 			}
 			searchIdentiferExpr = sq.Expr(mdQuery)
 		}
-
-		query = query.Where(sq.Expr("? LIKE ?", searchIdentiferExpr, fmt.Sprintf("%%%s%%", f.Search.Text)))
+		/*
+		 * if running into performance issues around ILIKE, the postgres
+		 * docs suggest just using lower() in the query
+		 * https://www.postgresql.org/docs/current/indexes-expressional.html
+		 */
+		sqlExprLike := "? LIKE ?"
+		if !f.CaseSensitive {
+			sqlExprLike = "? ILIKE ?"
+		}
+		query = query.Where(sq.Expr(sqlExprLike, searchIdentiferExpr, fmt.Sprintf("%%%s%%", f.Search.Text)))
 	}
 
 	if len(f.TypeUrl) > 0 {
@@ -142,13 +150,13 @@ func sortQueryBuilder(query sq.SelectBuilder, s *topologyv1.SearchRequest_Sort) 
 	}
 
 	if identifer == column {
-		query = query.OrderByClause(fmt.Sprintf("? %s", direction), strings.TrimPrefix(s.Field, columnIdentifer))
+		query = query.OrderBy(fmt.Sprintf("%s %s", strings.TrimPrefix(s.Field, columnIdentifer), direction))
 	} else if identifer == metadata {
 		mdQuery, err := convertMetadataToQuery(s.Field)
 		if err != nil {
 			return sq.SelectBuilder{}, err
 		}
-		query = query.OrderByClause(fmt.Sprintf("? %s", direction), mdQuery)
+		query = query.OrderBy(fmt.Sprintf("%s %s", mdQuery, direction))
 	}
 
 	return query, nil
@@ -182,8 +190,9 @@ func getFilterSortPrefixIdentifer(identifer string) (string, error) {
 
 // Transformation from a field identifier to a valid json sql query.
 // Example:
-//  input: "metadata.fieldone.fieldtwo.id"
-//  output: "metadata->fieldone->fieldtwo->>id"
+//
+//	input: "metadata.fieldone.fieldtwo.id"
+//	output: "metadata->fieldone->fieldtwo->>id"
 func convertMetadataToQuery(input string) (string, error) {
 	splitMetadata := strings.Split(strings.TrimPrefix(input, metadataIdentifer), ".")
 

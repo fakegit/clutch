@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,28 +31,63 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
-
-// define the regex for a UUID once up-front
-var _experimentation_uuidPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 // Validate checks the field values on CreateExperimentRequest with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *CreateExperimentRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateExperimentRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateExperimentRequestMultiError, or nil if none found.
+func (m *CreateExperimentRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateExperimentRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if m.GetData() == nil {
-		return CreateExperimentRequestValidationError{
+		err := CreateExperimentRequestValidationError{
 			field:  "Data",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetData()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetData()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateExperimentRequestValidationError{
+					field:  "Data",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateExperimentRequestValidationError{
+					field:  "Data",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetData()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return CreateExperimentRequestValidationError{
 				field:  "Data",
@@ -61,8 +97,29 @@ func (m *CreateExperimentRequest) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return CreateExperimentRequestMultiError(errors)
+	}
+
 	return nil
 }
+
+// CreateExperimentRequestMultiError is an error wrapping multiple validation
+// errors returned by CreateExperimentRequest.ValidateAll() if the designated
+// constraints aren't met.
+type CreateExperimentRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateExperimentRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateExperimentRequestMultiError) AllErrors() []error { return m }
 
 // CreateExperimentRequestValidationError is the validation error returned by
 // CreateExperimentRequest.Validate if the designated constraints aren't met.
@@ -122,13 +179,46 @@ var _ interface {
 
 // Validate checks the field values on CreateExperimentResponse with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *CreateExperimentResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateExperimentResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateExperimentResponseMultiError, or nil if none found.
+func (m *CreateExperimentResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateExperimentResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetExperiment()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetExperiment()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateExperimentResponseValidationError{
+					field:  "Experiment",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateExperimentResponseValidationError{
+					field:  "Experiment",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExperiment()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return CreateExperimentResponseValidationError{
 				field:  "Experiment",
@@ -138,8 +228,29 @@ func (m *CreateExperimentResponse) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return CreateExperimentResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// CreateExperimentResponseMultiError is an error wrapping multiple validation
+// errors returned by CreateExperimentResponse.ValidateAll() if the designated
+// constraints aren't met.
+type CreateExperimentResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateExperimentResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateExperimentResponseMultiError) AllErrors() []error { return m }
 
 // CreateExperimentResponseValidationError is the validation error returned by
 // CreateExperimentResponse.Validate if the designated constraints aren't met.
@@ -199,20 +310,57 @@ var _ interface {
 
 // Validate checks the field values on CreateOrGetExperimentRequest with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *CreateOrGetExperimentRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateOrGetExperimentRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateOrGetExperimentRequestMultiError, or nil if none found.
+func (m *CreateOrGetExperimentRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateOrGetExperimentRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if m.GetData() == nil {
-		return CreateOrGetExperimentRequestValidationError{
+		err := CreateOrGetExperimentRequestValidationError{
 			field:  "Data",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetData()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetData()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateOrGetExperimentRequestValidationError{
+					field:  "Data",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateOrGetExperimentRequestValidationError{
+					field:  "Data",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetData()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return CreateOrGetExperimentRequestValidationError{
 				field:  "Data",
@@ -222,8 +370,29 @@ func (m *CreateOrGetExperimentRequest) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return CreateOrGetExperimentRequestMultiError(errors)
+	}
+
 	return nil
 }
+
+// CreateOrGetExperimentRequestMultiError is an error wrapping multiple
+// validation errors returned by CreateOrGetExperimentRequest.ValidateAll() if
+// the designated constraints aren't met.
+type CreateOrGetExperimentRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateOrGetExperimentRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateOrGetExperimentRequestMultiError) AllErrors() []error { return m }
 
 // CreateOrGetExperimentRequestValidationError is the validation error returned
 // by CreateOrGetExperimentRequest.Validate if the designated constraints
@@ -284,13 +453,46 @@ var _ interface {
 
 // Validate checks the field values on CreateOrGetExperimentResponse with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *CreateOrGetExperimentResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateOrGetExperimentResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// CreateOrGetExperimentResponseMultiError, or nil if none found.
+func (m *CreateOrGetExperimentResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateOrGetExperimentResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetExperiment()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetExperiment()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CreateOrGetExperimentResponseValidationError{
+					field:  "Experiment",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CreateOrGetExperimentResponseValidationError{
+					field:  "Experiment",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExperiment()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return CreateOrGetExperimentResponseValidationError{
 				field:  "Experiment",
@@ -302,8 +504,29 @@ func (m *CreateOrGetExperimentResponse) Validate() error {
 
 	// no validation rules for Origin
 
+	if len(errors) > 0 {
+		return CreateOrGetExperimentResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// CreateOrGetExperimentResponseMultiError is an error wrapping multiple
+// validation errors returned by CreateOrGetExperimentResponse.ValidateAll()
+// if the designated constraints aren't met.
+type CreateOrGetExperimentResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateOrGetExperimentResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateOrGetExperimentResponseMultiError) AllErrors() []error { return m }
 
 // CreateOrGetExperimentResponseValidationError is the validation error
 // returned by CreateOrGetExperimentResponse.Validate if the designated
@@ -364,35 +587,62 @@ var _ interface {
 
 // Validate checks the field values on GetExperimentsRequest with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GetExperimentsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetExperimentsRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetExperimentsRequestMultiError, or nil if none found.
+func (m *GetExperimentsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetExperimentsRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if len(m.GetConfigType()) < 1 {
-		return GetExperimentsRequestValidationError{
-			field:  "ConfigType",
-			reason: "value length must be at least 1 bytes",
-		}
-	}
+	var errors []error
 
-	if _, ok := _GetExperimentsRequest_Status_NotInLookup[m.GetStatus()]; ok {
-		return GetExperimentsRequestValidationError{
-			field:  "Status",
-			reason: "value must not be in list [0]",
-		}
-	}
+	// no validation rules for ConfigType
 
 	if _, ok := GetExperimentsRequest_Status_name[int32(m.GetStatus())]; !ok {
-		return GetExperimentsRequestValidationError{
+		err := GetExperimentsRequestValidationError{
 			field:  "Status",
 			reason: "value must be one of the defined enum values",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return GetExperimentsRequestMultiError(errors)
 	}
 
 	return nil
 }
+
+// GetExperimentsRequestMultiError is an error wrapping multiple validation
+// errors returned by GetExperimentsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetExperimentsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetExperimentsRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetExperimentsRequestMultiError) AllErrors() []error { return m }
 
 // GetExperimentsRequestValidationError is the validation error returned by
 // GetExperimentsRequest.Validate if the designated constraints aren't met.
@@ -450,22 +700,51 @@ var _ interface {
 	ErrorName() string
 } = GetExperimentsRequestValidationError{}
 
-var _GetExperimentsRequest_Status_NotInLookup = map[GetExperimentsRequest_Status]struct{}{
-	0: {},
-}
-
 // Validate checks the field values on GetExperimentsResponse with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GetExperimentsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetExperimentsResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetExperimentsResponseMultiError, or nil if none found.
+func (m *GetExperimentsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetExperimentsResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	for idx, item := range m.GetExperiments() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetExperimentsResponseValidationError{
+						field:  fmt.Sprintf("Experiments[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetExperimentsResponseValidationError{
+						field:  fmt.Sprintf("Experiments[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return GetExperimentsResponseValidationError{
 					field:  fmt.Sprintf("Experiments[%v]", idx),
@@ -477,8 +756,29 @@ func (m *GetExperimentsResponse) Validate() error {
 
 	}
 
+	if len(errors) > 0 {
+		return GetExperimentsResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// GetExperimentsResponseMultiError is an error wrapping multiple validation
+// errors returned by GetExperimentsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetExperimentsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetExperimentsResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetExperimentsResponseMultiError) AllErrors() []error { return m }
 
 // GetExperimentsResponseValidationError is the validation error returned by
 // GetExperimentsResponse.Validate if the designated constraints aren't met.
@@ -538,35 +838,82 @@ var _ interface {
 
 // Validate checks the field values on CancelExperimentRunRequest with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *CancelExperimentRunRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CancelExperimentRunRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CancelExperimentRunRequestMultiError, or nil if none found.
+func (m *CancelExperimentRunRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CancelExperimentRunRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if len(m.GetId()) < 1 {
-		return CancelExperimentRunRequestValidationError{
+		err := CancelExperimentRunRequestValidationError{
 			field:  "Id",
 			reason: "value length must be at least 1 bytes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if utf8.RuneCountInString(m.GetReason()) > 100 {
-		return CancelExperimentRunRequestValidationError{
+	if utf8.RuneCountInString(m.GetReason()) > 150 {
+		err := CancelExperimentRunRequestValidationError{
 			field:  "Reason",
-			reason: "value length must be at most 100 runes",
+			reason: "value length must be at most 150 runes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
 	if len(m.GetReason()) < 1 {
-		return CancelExperimentRunRequestValidationError{
+		err := CancelExperimentRunRequestValidationError{
 			field:  "Reason",
 			reason: "value length must be at least 1 bytes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return CancelExperimentRunRequestMultiError(errors)
 	}
 
 	return nil
 }
+
+// CancelExperimentRunRequestMultiError is an error wrapping multiple
+// validation errors returned by CancelExperimentRunRequest.ValidateAll() if
+// the designated constraints aren't met.
+type CancelExperimentRunRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CancelExperimentRunRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CancelExperimentRunRequestMultiError) AllErrors() []error { return m }
 
 // CancelExperimentRunRequestValidationError is the validation error returned
 // by CancelExperimentRunRequest.Validate if the designated constraints aren't met.
@@ -626,14 +973,49 @@ var _ interface {
 
 // Validate checks the field values on CancelExperimentRunResponse with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *CancelExperimentRunResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CancelExperimentRunResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CancelExperimentRunResponseMultiError, or nil if none found.
+func (m *CancelExperimentRunResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CancelExperimentRunResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
+	if len(errors) > 0 {
+		return CancelExperimentRunResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// CancelExperimentRunResponseMultiError is an error wrapping multiple
+// validation errors returned by CancelExperimentRunResponse.ValidateAll() if
+// the designated constraints aren't met.
+type CancelExperimentRunResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CancelExperimentRunResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CancelExperimentRunResponseMultiError) AllErrors() []error { return m }
 
 // CancelExperimentRunResponseValidationError is the validation error returned
 // by CancelExperimentRunResponse.Validate if the designated constraints
@@ -694,14 +1076,49 @@ var _ interface {
 
 // Validate checks the field values on GetListViewRequest with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GetListViewRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetListViewRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetListViewRequestMultiError, or nil if none found.
+func (m *GetListViewRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetListViewRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
+	if len(errors) > 0 {
+		return GetListViewRequestMultiError(errors)
+	}
+
 	return nil
 }
+
+// GetListViewRequestMultiError is an error wrapping multiple validation errors
+// returned by GetListViewRequest.ValidateAll() if the designated constraints
+// aren't met.
+type GetListViewRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetListViewRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetListViewRequestMultiError) AllErrors() []error { return m }
 
 // GetListViewRequestValidationError is the validation error returned by
 // GetListViewRequest.Validate if the designated constraints aren't met.
@@ -761,16 +1178,49 @@ var _ interface {
 
 // Validate checks the field values on GetListViewResponse with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GetListViewResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetListViewResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetListViewResponseMultiError, or nil if none found.
+func (m *GetListViewResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetListViewResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	for idx, item := range m.GetItems() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetListViewResponseValidationError{
+						field:  fmt.Sprintf("Items[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetListViewResponseValidationError{
+						field:  fmt.Sprintf("Items[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return GetListViewResponseValidationError{
 					field:  fmt.Sprintf("Items[%v]", idx),
@@ -782,8 +1232,29 @@ func (m *GetListViewResponse) Validate() error {
 
 	}
 
+	if len(errors) > 0 {
+		return GetListViewResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// GetListViewResponseMultiError is an error wrapping multiple validation
+// errors returned by GetListViewResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetListViewResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetListViewResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetListViewResponseMultiError) AllErrors() []error { return m }
 
 // GetListViewResponseValidationError is the validation error returned by
 // GetListViewResponse.Validate if the designated constraints aren't met.
@@ -843,21 +1314,60 @@ var _ interface {
 
 // Validate checks the field values on GetExperimentRunDetailsRequest with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GetExperimentRunDetailsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetExperimentRunDetailsRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GetExperimentRunDetailsRequestMultiError, or nil if none found.
+func (m *GetExperimentRunDetailsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetExperimentRunDetailsRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if len(m.GetId()) < 1 {
-		return GetExperimentRunDetailsRequestValidationError{
+		err := GetExperimentRunDetailsRequestValidationError{
 			field:  "Id",
 			reason: "value length must be at least 1 bytes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return GetExperimentRunDetailsRequestMultiError(errors)
 	}
 
 	return nil
 }
+
+// GetExperimentRunDetailsRequestMultiError is an error wrapping multiple
+// validation errors returned by GetExperimentRunDetailsRequest.ValidateAll()
+// if the designated constraints aren't met.
+type GetExperimentRunDetailsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetExperimentRunDetailsRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetExperimentRunDetailsRequestMultiError) AllErrors() []error { return m }
 
 // GetExperimentRunDetailsRequestValidationError is the validation error
 // returned by GetExperimentRunDetailsRequest.Validate if the designated
@@ -918,13 +1428,46 @@ var _ interface {
 
 // Validate checks the field values on GetExperimentRunDetailsResponse with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GetExperimentRunDetailsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetExperimentRunDetailsResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GetExperimentRunDetailsResponseMultiError, or nil if none found.
+func (m *GetExperimentRunDetailsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetExperimentRunDetailsResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetRunDetails()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRunDetails()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetExperimentRunDetailsResponseValidationError{
+					field:  "RunDetails",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetExperimentRunDetailsResponseValidationError{
+					field:  "RunDetails",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRunDetails()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return GetExperimentRunDetailsResponseValidationError{
 				field:  "RunDetails",
@@ -934,8 +1477,29 @@ func (m *GetExperimentRunDetailsResponse) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return GetExperimentRunDetailsResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// GetExperimentRunDetailsResponseMultiError is an error wrapping multiple
+// validation errors returned by GetExperimentRunDetailsResponse.ValidateAll()
+// if the designated constraints aren't met.
+type GetExperimentRunDetailsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetExperimentRunDetailsResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetExperimentRunDetailsResponseMultiError) AllErrors() []error { return m }
 
 // GetExperimentRunDetailsResponseValidationError is the validation error
 // returned by GetExperimentRunDetailsResponse.Validate if the designated

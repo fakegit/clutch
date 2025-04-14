@@ -1,0 +1,52 @@
+{
+  "name": "@clutch-sh/project-catalog",
+  "version": "4.0.0-beta",
+  "description": "Clutch Project Catalog",
+  "license": "Apache-2.0",
+  "author": "clutch@lyft.com",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "yarn clean && yarn compile",
+    "clean": "yarn run package:clean",
+    "compile": "yarn run package:compile",
+    "compile:dev": "yarn run package:compile:dev",
+    "compile:watch": "yarn run package:compile:watch",
+    "lint": "yarn run package:lint",
+    "lint:fix": "yarn run lint --fix",
+    "publishBeta": "../../../tools/publish-frontend.sh project-catalog",
+    "test": "yarn run package:test",
+    "test:coverage": "yarn run test --collect-coverage",
+    "test:watch": "yarn run test --watch"
+  },
+  "dependencies": {
+    "@clutch-sh/api": "workspace:^",
+    "@clutch-sh/core": "workspace:^",
+    "@fortawesome/fontawesome-svg-core": "^6.1.1",
+    "@fortawesome/free-brands-svg-icons": "^6.1.1",
+    "@fortawesome/free-regular-svg-icons": "^6.1.1",
+    "@fortawesome/free-solid-svg-icons": "^6.1.1",
+    "@fortawesome/react-fontawesome": "^0.1.18",
+    "lodash": "^4.17.0",
+    "react-hook-form": "^7.25.3"
+  },
+  "devDependencies": {
+    "@clutch-sh/tools": "workspace:^"
+  },
+  "peerDependencies": {
+    "@emotion/styled": "^11.8.1",
+    "@mui/icons-material": "^5.11.0",
+    "@mui/material": "^5.11.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "typescript": "^4.2.3"
+  },
+  "engines": {
+    "node": ">=18 <19",
+    "yarn": "^4.5.0"
+  },
+  "packageManager": "yarn@4.5.0",
+  "stableVersion": "3.0.0-beta"
+}

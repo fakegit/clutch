@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+########
+# Note: When updating any of these versions be sure to also
+# update the corresponding version in .vscode/settings.json
+# and api/.vscode/settings.json
+########
+
 # https://github.com/protocolbuffers/protobuf/releases
-PROTOC_RELEASE=3.14.0
-PROTO_ZIP_RELEASE_MD5_LINUX=cef4dc2f438e44e5d1af64ba4f9dbaa6
-PROTO_ZIP_RELEASE_MD5_OSX=ac2977d94676a7371b9e92fa3a29bc21
+PROTOC_RELEASE=3.17.3
+PROTO_ZIP_RELEASE_MD5_LINUX=80d0b941868e58f2d1af20fbe8143341
+PROTO_ZIP_RELEASE_MD5_OSX=b97730ce009f781d895e816549bfc663
 
 # https://github.com/protobufjs/protobuf.js/releases
 # NOTE: should match frontend/package.json
-PROTOBUFJS_RELEASE=6.10.2
+PROTOBUFJS_RELEASE=6.11.3
 
 # https://github.com/angular/clang-format/releases
 ANGULAR_CLANG_FORMAT_RELEASE=1.4.0
@@ -109,13 +115,13 @@ main() {
         if ! output=$("${PROTOC_BIN}" \
           -I"${PROTOC_INCLUDE_DIR}" -I"${API_ROOT}" -I"${CLUTCH_API_ROOT}" \
           -I"${googleapis_include_path}" -I"${pg_validate_include_path}" \
-          --buf-check-lint_out=. \
-          "--buf-check-lint_opt={\"input_config\": ${buf_lint_config}}" \
-          --plugin=protoc-gen-buf-check-lint="${GOBIN}/protoc-gen-buf-check-lint" \
+          --buf-lint_out=. \
+          "--buf-lint_opt={\"input_config\": ${buf_lint_config}}" \
+          --plugin=protoc-gen-buf-lint="${GOBIN}/protoc-gen-buf-lint" \
           "${proto}" 2>&1)
         then
           echo "--- ${proto}"
-          echo "${output}" | sed 's/--buf-check-lint_out: //' | cut -d":" -f2-
+          echo "${output}" | sed 's/--buf-lint_out: //' | cut -d":" -f2-
           LINT_OK=false
         fi
       done
@@ -146,6 +152,22 @@ main() {
       --plugin protoc-gen-validate="${GOBIN}/protoc-gen-validate" \
       "${proto_dir}"/*.proto
   done
+
+  # Compile the test proto if we're in the core repository.
+  if [[ "${SCRIPT_ROOT}" == "${REPO_ROOT}" ]]; then
+    testpb="${REPO_ROOT}/backend/internal/test/pb/test.proto"
+    echo "${testpb}"
+    "${PROTOC_BIN}" \
+    -I"${PROTOC_INCLUDE_DIR}" -I"${API_ROOT}" -I"${googleapis_include_path}" \
+    -I "${REPO_ROOT}"/backend/internal/test/pb/ \
+    --go_out "${REPO_ROOT}"/backend/internal/test/pb \
+    --go_opt paths=source_relative \
+    --plugin protoc-gen-go="${GOBIN}/protoc-gen-go" \
+    --plugin protoc-gen-go-grpc="${GOBIN}/protoc-gen-go-grpc" \
+    --plugin protoc-gen-grpc-gateway="${GOBIN}/protoc-gen-grpc-gateway" \
+    --plugin protoc-gen-validate="${GOBIN}/protoc-gen-validate" \
+    "${testpb}"
+  fi
 
   echo "info: compiling javascript bundle"
   cd ..
@@ -215,7 +237,9 @@ install_protobufjs() {
   if [[ ! -f "${PROTOBUFJS_DIR}/node_modules/.bin/pbjs" ]]; then
     echo "info: Downloading protobufjs to build environment"
     mkdir -p "${PROTOBUFJS_DIR}"
-    "${BUILD_ROOT}/bin/yarn.sh" --cwd "${PROTOBUFJS_DIR}" add --frozen-lockfile "protobufjs@${PROTOBUFJS_RELEASE}"
+    "${BUILD_ROOT}/bin/yarn.sh" --cwd "${PROTOBUFJS_DIR}" init --yes
+    "${BUILD_ROOT}/bin/yarn.sh" --cwd "${PROTOBUFJS_DIR}" config set nodeLinker node-modules
+    "${BUILD_ROOT}/bin/yarn.sh" --cwd "${PROTOBUFJS_DIR}" add "protobufjs@${PROTOBUFJS_RELEASE}"
   fi
 }
 
@@ -226,7 +250,7 @@ install_googleapis() {
     googleapis_zip_out="/tmp/googleapis-${GOOGLEAPIS_SHA}.zip"
     curl -sSL -o "${googleapis_zip_out}" \
       "https://github.com/googleapis/googleapis/archive/${GOOGLEAPIS_SHA}.zip"
-    
+
     googleapis_dir_out="/tmp/googleapis-${GOOGLEAPIS_SHA}"
     mkdir -p "${googleapis_dir_out}"
     unzip -q -o "${googleapis_zip_out}" -d "${googleapis_dir_out}"
@@ -273,8 +297,8 @@ install_protoc() {
   export PROTOC_BIN="${GOBIN}/protoc-v${PROTOC_RELEASE}"
   export PROTOC_INCLUDE_DIR="${GOBIN}/protoc-v${PROTOC_RELEASE}-include"
 
+  go install github.com/bufbuild/buf/cmd/protoc-gen-buf-lint@v1.30.0
   go install \
-    github.com/bufbuild/buf/cmd/protoc-gen-buf-check-lint \
     github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway \
     github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2 \
     github.com/envoyproxy/protoc-gen-validate \

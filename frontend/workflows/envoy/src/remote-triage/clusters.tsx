@@ -1,24 +1,24 @@
 import React from "react";
 import type { clutch as IClutch } from "@clutch-sh/api";
-import { AccordionRow, StatusIcon, Table, TableRow } from "@clutch-sh/core";
-import styled from "@emotion/styled";
+import { AccordionRow, StatusIcon, styled, Table, TableRow, useTheme } from "@clutch-sh/core";
+import type { Theme } from "@mui/material";
 import _ from "lodash";
 
-const BarContainer = styled.rect(
+const BarContainer = styled("rect")<{ $fill: string; $width: string }>(
   {
     height: "12px",
   },
-  props => ({
-    width: props.width,
-    fill: props.fill,
-    strokeWidth: props.fill === "transparent" ? "1px" : "0",
-    stroke: "#C2C8F2",
+  props => ({ theme }: { theme: Theme }) => ({
+    width: props.$width,
+    fill: props.$fill,
+    strokeWidth: props.$fill === "transparent" ? "1px" : "0",
+    stroke: theme.palette.primary[400],
   })
 );
 
 const Bar = ({ fill, width }) => (
   <svg width={width} height="12px">
-    <BarContainer fill={fill} width={width} />
+    <BarContainer $fill={fill} $width={width} />
   </svg>
 );
 
@@ -28,11 +28,16 @@ interface RatioStatusProps {
 }
 
 const RatioStatus: React.FC<RatioStatusProps> = ({ succeeded, failed }) => {
+  const theme = useTheme();
   const total = succeeded + failed;
   return (
     <>
-      {succeeded !== 0 && <Bar fill="#69F0AE" width={`${(succeeded / total) * 100}px`} />}
-      {failed !== 0 && <Bar fill="#FF8A80" width={`${(failed / total) * 100}px`} />}
+      {succeeded !== 0 && (
+        <Bar fill={theme.palette.success[300]} width={`${(succeeded / total) * 100}px`} />
+      )}
+      {failed !== 0 && (
+        <Bar fill={theme.palette.error[300]} width={`${(failed / total) * 100}px`} />
+      )}
     </>
   );
 };
@@ -80,11 +85,11 @@ const Clusters: React.FC<ClustersProps> = ({ clusters }) => {
 
   return (
     <div style={{ height: "400px", display: "flex" }}>
-      <Table stickyHeader headings={["Hosts", "Status"]}>
+      <Table stickyHeader columns={["Hosts", "Status"]}>
         {_.sortBy(statuses, ["name"]).map(cluster => (
           <AccordionRow
             key={cluster.name}
-            headings={[
+            columns={[
               cluster.name,
               cluster.hosts.length === 0 ? (
                 <Bar fill="transparent" width="100px" />

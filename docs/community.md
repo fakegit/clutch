@@ -8,29 +8,9 @@ import CommunityCard from '@site/src/components/CommunityCard';
 Clutch was built to be an ecosystem, and community is an important part of that. We value all contributions and ideas, big or small.
 
 ## Discussion
-<CommunityCard icon="slack" to="https://join.slack.com/t/lyftoss/shared_invite/zt-casz6lz4-G7gOx1OhHfeMsZKFe1emSA">
-
-Join the **Lyft OSS Slack** and come see us in channel **`#clutch`**!
-
-</CommunityCard>
-
-<CommunityCard icon="twitter" to="https://twitter.com/clutchdotsh">
-
-Follow us on **Twitter** for news and updates `@clutchdotsh`.
-
-</CommunityCard>
-
 <CommunityCard icon="github" to="https://github.com/lyft/clutch/issues">
 
 File a GitHub issue in **`lyft/clutch`**.
-
-</CommunityCard>
-
-<CommunityCard icon="calendar" to="https://calendly.com/clutchsh/office-hours">
-
-Schedule time during our office hours with **Calendly**.
-
-*Available in 15-minute slots on Tuesdays from 11am - 12pm Pacific.*
 
 </CommunityCard>
 

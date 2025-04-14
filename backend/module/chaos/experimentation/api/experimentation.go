@@ -1,7 +1,7 @@
 package api
 
 // <!-- START clutchdoc -->
-// description: Experimentation Framework Service implementation. Supports a CRUD API for managing experiments.
+// description: Chaos Experimentation Framework - Supports a CRUD API for managing experiments.
 // <!-- END clutchdoc -->
 
 import (
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 

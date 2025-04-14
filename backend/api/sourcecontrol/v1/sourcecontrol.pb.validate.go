@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,22 +31,55 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
-
-// define the regex for a UUID once up-front
-var _sourcecontrol_uuidPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 // Validate checks the field values on GetRepositoryOptionsRequest with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GetRepositoryOptionsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetRepositoryOptionsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetRepositoryOptionsRequestMultiError, or nil if none found.
+func (m *GetRepositoryOptionsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetRepositoryOptionsRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
+	if len(errors) > 0 {
+		return GetRepositoryOptionsRequestMultiError(errors)
+	}
+
 	return nil
 }
+
+// GetRepositoryOptionsRequestMultiError is an error wrapping multiple
+// validation errors returned by GetRepositoryOptionsRequest.ValidateAll() if
+// the designated constraints aren't met.
+type GetRepositoryOptionsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetRepositoryOptionsRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetRepositoryOptionsRequestMultiError) AllErrors() []error { return m }
 
 // GetRepositoryOptionsRequestValidationError is the validation error returned
 // by GetRepositoryOptionsRequest.Validate if the designated constraints
@@ -105,18 +139,52 @@ var _ interface {
 } = GetRepositoryOptionsRequestValidationError{}
 
 // Validate checks the field values on Entity with the rules defined in the
-// proto definition for this message. If any rules are violated, an error is returned.
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *Entity) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Entity with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in EntityMultiError, or nil if none found.
+func (m *Entity) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Entity) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
+
+	var errors []error
 
 	// no validation rules for Name
 
 	// no validation rules for PhotoUrl
 
+	if len(errors) > 0 {
+		return EntityMultiError(errors)
+	}
+
 	return nil
 }
+
+// EntityMultiError is an error wrapping multiple validation errors returned by
+// Entity.ValidateAll() if the designated constraints aren't met.
+type EntityMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m EntityMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m EntityMultiError) AllErrors() []error { return m }
 
 // EntityValidationError is the validation error returned by Entity.Validate if
 // the designated constraints aren't met.
@@ -174,16 +242,49 @@ var _ interface {
 
 // Validate checks the field values on GetRepositoryOptionsResponse with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GetRepositoryOptionsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetRepositoryOptionsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetRepositoryOptionsResponseMultiError, or nil if none found.
+func (m *GetRepositoryOptionsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetRepositoryOptionsResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	for idx, item := range m.GetAvailableOwners() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetRepositoryOptionsResponseValidationError{
+						field:  fmt.Sprintf("AvailableOwners[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetRepositoryOptionsResponseValidationError{
+						field:  fmt.Sprintf("AvailableOwners[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return GetRepositoryOptionsResponseValidationError{
 					field:  fmt.Sprintf("AvailableOwners[%v]", idx),
@@ -195,8 +296,29 @@ func (m *GetRepositoryOptionsResponse) Validate() error {
 
 	}
 
+	if len(errors) > 0 {
+		return GetRepositoryOptionsResponseMultiError(errors)
+	}
+
 	return nil
 }
+
+// GetRepositoryOptionsResponseMultiError is an error wrapping multiple
+// validation errors returned by GetRepositoryOptionsResponse.ValidateAll() if
+// the designated constraints aren't met.
+type GetRepositoryOptionsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetRepositoryOptionsResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetRepositoryOptionsResponseMultiError) AllErrors() []error { return m }
 
 // GetRepositoryOptionsResponseValidationError is the validation error returned
 // by GetRepositoryOptionsResponse.Validate if the designated constraints
@@ -257,33 +379,85 @@ var _ interface {
 
 // Validate checks the field values on CreateRepositoryRequest with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *CreateRepositoryRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateRepositoryRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateRepositoryRequestMultiError, or nil if none found.
+func (m *CreateRepositoryRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateRepositoryRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if len(m.GetOwner()) < 1 {
-		return CreateRepositoryRequestValidationError{
+		err := CreateRepositoryRequestValidationError{
 			field:  "Owner",
 			reason: "value length must be at least 1 bytes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
 	if len(m.GetName()) < 1 {
-		return CreateRepositoryRequestValidationError{
+		err := CreateRepositoryRequestValidationError{
 			field:  "Name",
 			reason: "value length must be at least 1 bytes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
 	// no validation rules for Description
 
-	switch m.Options.(type) {
-
+	oneofOptionsPresent := false
+	switch v := m.Options.(type) {
 	case *CreateRepositoryRequest_CustomOptions:
+		if v == nil {
+			err := CreateRepositoryRequestValidationError{
+				field:  "Options",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofOptionsPresent = true
 
-		if v, ok := interface{}(m.GetCustomOptions()).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(m.GetCustomOptions()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, CreateRepositoryRequestValidationError{
+						field:  "CustomOptions",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, CreateRepositoryRequestValidationError{
+						field:  "CustomOptions",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetCustomOptions()).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return CreateRepositoryRequestValidationError{
 					field:  "CustomOptions",
@@ -294,8 +468,38 @@ func (m *CreateRepositoryRequest) Validate() error {
 		}
 
 	case *CreateRepositoryRequest_GithubOptions:
+		if v == nil {
+			err := CreateRepositoryRequestValidationError{
+				field:  "Options",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofOptionsPresent = true
 
-		if v, ok := interface{}(m.GetGithubOptions()).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(m.GetGithubOptions()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, CreateRepositoryRequestValidationError{
+						field:  "GithubOptions",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, CreateRepositoryRequestValidationError{
+						field:  "GithubOptions",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetGithubOptions()).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return CreateRepositoryRequestValidationError{
 					field:  "GithubOptions",
@@ -306,15 +510,42 @@ func (m *CreateRepositoryRequest) Validate() error {
 		}
 
 	default:
-		return CreateRepositoryRequestValidationError{
+		_ = v // ensures v is used
+	}
+	if !oneofOptionsPresent {
+		err := CreateRepositoryRequestValidationError{
 			field:  "Options",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
+	if len(errors) > 0 {
+		return CreateRepositoryRequestMultiError(errors)
 	}
 
 	return nil
 }
+
+// CreateRepositoryRequestMultiError is an error wrapping multiple validation
+// errors returned by CreateRepositoryRequest.ValidateAll() if the designated
+// constraints aren't met.
+type CreateRepositoryRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateRepositoryRequestMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateRepositoryRequestMultiError) AllErrors() []error { return m }
 
 // CreateRepositoryRequestValidationError is the validation error returned by
 // CreateRepositoryRequest.Validate if the designated constraints aren't met.
@@ -374,16 +605,51 @@ var _ interface {
 
 // Validate checks the field values on CreateRepositoryResponse with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *CreateRepositoryResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateRepositoryResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateRepositoryResponseMultiError, or nil if none found.
+func (m *CreateRepositoryResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateRepositoryResponse) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	// no validation rules for Url
+
+	if len(errors) > 0 {
+		return CreateRepositoryResponseMultiError(errors)
+	}
 
 	return nil
 }
+
+// CreateRepositoryResponseMultiError is an error wrapping multiple validation
+// errors returned by CreateRepositoryResponse.ValidateAll() if the designated
+// constraints aren't met.
+type CreateRepositoryResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateRepositoryResponseMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateRepositoryResponseMultiError) AllErrors() []error { return m }
 
 // CreateRepositoryResponseValidationError is the validation error returned by
 // CreateRepositoryResponse.Validate if the designated constraints aren't met.

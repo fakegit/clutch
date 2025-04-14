@@ -83,7 +83,6 @@ func TestExperimentRunStatus(t *testing.T) {
 	}
 
 	for idx, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 
@@ -115,7 +114,7 @@ func TestExperimentRunProperties(t *testing.T) {
 			cancellationTime:  nil,
 			creationTime:      now,
 			now:               now,
-			terminationReason: "",
+			terminationReason: "foo",
 			expectedPropertyIds: []string{
 				"run_identifier",
 				"status",
@@ -156,7 +155,7 @@ func TestExperimentRunProperties(t *testing.T) {
 				"termination_reason",
 			},
 			expectedPropertyValues: map[string]string{
-				"termination_reason": "Unknown",
+				"termination_reason": "N/A",
 			},
 		},
 		{
@@ -176,7 +175,7 @@ func TestExperimentRunProperties(t *testing.T) {
 				"termination_reason",
 			},
 			expectedPropertyValues: map[string]string{
-				"termination_reason": "Unknown",
+				"termination_reason": "N/A",
 			},
 		},
 		{
@@ -202,7 +201,6 @@ func TestExperimentRunProperties(t *testing.T) {
 	}
 
 	for idx, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 			run := &ExperimentRun{

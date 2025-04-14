@@ -7,9 +7,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -83,7 +82,6 @@ func TestTerminator(t *testing.T) {
 		criterionEvaluationSuccessCount: testScope.Counter("criterion_success"),
 		criterionEvaluationFailureCount: testScope.Counter("criterion_failure"),
 		terminationCount:                testScope.Counter("terminations"),
-		marshallingErrorCount:           testScope.Counter("unpack_error"),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
@@ -158,7 +156,7 @@ type testCriterion struct {
 	sync.Mutex
 }
 
-func (t *testCriterion) ShouldTerminate(experiment *experimentstore.Experiment, experimentConfig proto.Message) (string, error) {
+func (t *testCriterion) ShouldTerminate(experiment *experimentstore.Experiment) (string, error) {
 	t.Lock()
 	defer t.Unlock()
 
@@ -188,7 +186,7 @@ func awaitGaugeValue(ctx context.Context, t *testing.T, testScope tally.TestScop
 				return
 			}
 		case <-ctx.Done():
-			t.Errorf(context.Canceled.Error())
+			t.Errorf("%s", context.Canceled.Error())
 			return
 		}
 	}

@@ -1,22 +1,22 @@
 import React from "react";
 import type { clutch as IClutch } from "@clutch-sh/api";
-import { MetadataTable } from "@clutch-sh/core";
-import styled from "@emotion/styled";
+import { MetadataTable, styled } from "@clutch-sh/core";
+import type { Theme } from "@mui/material";
 
-const Container = styled.div({
+const Container = styled("div")(({ theme }: { theme: Theme }) => ({
   "> *": {
-    padding: "8px 0",
+    padding: theme.spacing("sm", "none"),
   },
-});
-const Title = styled.div({
+}));
+
+const Title = styled("div")(({ theme }: { theme: Theme }) => ({
   fontWeight: "bold",
   fontSize: "20px",
-  color: "#0D1030",
+  color: theme.palette.secondary[900],
   textTransform: "capitalize",
-});
+}));
 
 interface ServerInformation {
-  // eslint-disable-next-line camelcase
   command_line_options: {
     [key: string]: string;
   };

@@ -1,59 +1,164 @@
 import * as React from "react";
-import styled from "@emotion/styled";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import type { Theme } from "@mui/material";
 import {
   IconButton,
   Paper as MuiPaper,
   Table as MuiTable,
-  TableBody,
-  TableCell as MuiTableCell,
+  TableBody as MuiTableBody,
   TableContainer as MuiTableContainer,
-  TableHead,
-  TableProps as MuiTableProps,
   TableRow as MuiTableRow,
-  TableRowProps as MuiTableRowProps,
-} from "@material-ui/core";
-import MoreVertIcon from "@material-ui/icons/MoreVert";
+  useMediaQuery,
+} from "@mui/material";
 
 import { Popper, PopperItem } from "../popper";
+import styled from "../styled";
+import { getDisplayName } from "../utils";
 
-const TablePaper = styled(MuiPaper)({
-  border: "1px solid #E7E7EA",
-});
+import TableCell from "./components/TableCell";
+import TableHeader from "./components/TableHeader";
+import type { TableContainerProps, TableProps, TableRowProps } from "./types";
 
-const StyledTableRow = styled(MuiTableRow)({
-  ":hover": {
-    background: "#EBEDFB",
-  },
-});
+const StyledPaper = styled(MuiPaper)(({ theme }: { theme: Theme }) => ({
+  border: `1px solid ${theme.palette.secondary[200]}`,
+}));
 
-export const TableCell = styled(MuiTableCell)(
+const StyledTable = styled(MuiTable)<{
+  $hasActionsColumn?: TableProps["actionsColumn"];
+  $columnCount: number;
+  $compress: boolean;
+  $responsive?: TableProps["responsive"];
+  $overflow?: TableProps["overflow"];
+}>(
   {
-    fontSize: "14px",
-    padding: "12px 16px",
-    color: "#0D1030",
+    minWidth: "100%",
+    borderCollapse: "collapse",
+    alignItems: "center",
   },
   props => ({
-    borderBottom: props["data-border"] ? "1px solid #E7E7EA" : "0",
+    display: !props.$responsive ? "table" : props.$compress ? "table" : "grid",
+    gridTemplateColumns: `repeat(${props.$columnCount}, auto)${
+      props.$hasActionsColumn ? " 80px" : ""
+    }`,
+    ".MuiTableCell-root": {
+      wordBreak: props.$overflow === "scroll" ? "normal" : props.$overflow,
+    },
   })
 );
 
-const HeaderTableCell = styled(TableCell)({
-  backgroundColor: "rgba(248, 248, 249, 1)",
-  fontWeight: 600,
+const StyledTableBody = styled(MuiTableBody)({
+  display: "contents",
 });
 
-const HeaderActionTableCell = styled(HeaderTableCell)({
-  width: "48px",
-});
+const StyledTableRow = styled(MuiTableRow)<{
+  $responsive?: TableRowProps["responsive"];
+}>(
+  ({ theme }: { theme: Theme }) => ({
+    ":nth-of-type(even)": {
+      background: theme.palette.secondary[50],
+    },
+    ":hover": {
+      background: theme.palette.primary[200],
+    },
+  }),
+  props => ({
+    display: props.$responsive ? "contents" : "",
+  })
+);
 
-export interface TableContainerProps {
-  children: React.ReactElement<MuiTableProps>;
-}
-
-export const TableContainer = ({ children }: TableContainerProps) => (
-  <MuiTableContainer component={TablePaper} elevation={0}>
+const TableContainer = ({ children }: TableContainerProps) => (
+  <MuiTableContainer component={StyledPaper} elevation={0}>
     {children}
   </MuiTableContainer>
+);
+
+const Table: React.FC<TableProps> = React.forwardRef(
+  (
+    {
+      columns,
+      compressBreakpoint = "sm",
+      hideHeader = false,
+      actionsColumn = false,
+      responsive = false,
+      overflow = "scroll",
+      children,
+      defaultSort,
+      onRequestSort,
+      ...props
+    },
+    ref
+  ) => {
+    const showHeader = !hideHeader;
+    const compress = useMediaQuery((theme: any) => theme.breakpoints.down(compressBreakpoint));
+
+    return (
+      <TableContainer>
+        <StyledTable
+          $compress={compress}
+          $columnCount={columns?.length}
+          $hasActionsColumn={actionsColumn}
+          $responsive={responsive}
+          $overflow={overflow}
+          ref={ref}
+          {...props}
+        >
+          {/*
+          Filter out empty strings from column headers.
+          This may be unintended which is why we override with the hideHeader prop.
+        */}
+          {showHeader && (
+            <TableHeader
+              columns={columns}
+              responsive={responsive}
+              defaultSort={defaultSort}
+              onRequestSort={onRequestSort}
+              actionsColumn={actionsColumn}
+              compress={compress}
+            />
+          )}
+          <StyledTableBody>
+            {React.Children.map(children, (c: React.ReactElement<TableRowProps>) =>
+              React.cloneElement(c, { responsive })
+            )}
+          </StyledTableBody>
+        </StyledTable>
+      </TableContainer>
+    );
+  }
+);
+
+const TableRow = ({
+  children = [],
+  onClick,
+  cellDefault,
+  responsive = false,
+  colSpan,
+  ...props
+}: TableRowProps) => (
+  <StyledTableRow onClick={onClick} $responsive={responsive} {...props}>
+    {React.Children.map(children, (child, index) => {
+      const withTableCellWrapper = (
+        <TableCell
+          // eslint-disable-next-line react/no-array-index-key
+          key={index}
+          responsive={responsive}
+          colSpan={colSpan}
+        >
+          {child === null && cellDefault !== undefined ? cellDefault : child}
+        </TableCell>
+      );
+
+      if (React.isValidElement(child)) {
+        switch (getDisplayName(child)) {
+          case "ClutchTableCell":
+            return child;
+          default:
+            return withTableCellWrapper;
+        }
+      }
+      return withTableCellWrapper;
+    })}
+  </StyledTableRow>
 );
 
 interface TableRowActionProps {
@@ -62,7 +167,7 @@ interface TableRowActionProps {
   icon?: React.ReactElement;
 }
 
-export const TableRowAction = ({ children, onClick, icon }: TableRowActionProps) => (
+const TableRowAction = ({ children, onClick, icon }: TableRowActionProps) => (
   <PopperItem icon={icon} onClick={onClick}>
     {children}
   </PopperItem>
@@ -72,7 +177,7 @@ interface TableRowActionsProps {
   children?: React.ReactElement<TableRowActionProps> | React.ReactElement<TableRowActionProps>[];
 }
 
-export const TableRowActions = ({ children }: TableRowActionsProps) => {
+const TableRowActions = ({ children }: TableRowActionsProps) => {
   const anchorRef = React.useRef(null);
   const [open, setOpen] = React.useState(false);
 
@@ -83,6 +188,7 @@ export const TableRowActions = ({ children }: TableRowActionsProps) => {
         disabled={React.Children.count(children) <= 0}
         ref={anchorRef}
         onClick={() => setOpen(true)}
+        size="large"
       >
         <MoreVertIcon />
       </IconButton>
@@ -98,51 +204,4 @@ export const TableRowActions = ({ children }: TableRowActionsProps) => {
   );
 };
 
-export interface TableProps extends Pick<MuiTableProps, "stickyHeader"> {
-  headings?: string[];
-  actionsColumn?: boolean;
-}
-
-export const Table: React.FC<TableProps> = ({
-  headings,
-  actionsColumn = false,
-  children,
-  ...props
-}) => {
-  const localHeadings = headings ? [...headings] : [];
-  return (
-    <TableContainer>
-      <MuiTable {...props}>
-        {localHeadings.length !== 0 && (
-          <TableHead>
-            <MuiTableRow>
-              {localHeadings.map(heading => (
-                <HeaderTableCell key={heading} align="left">
-                  {heading}
-                </HeaderTableCell>
-              ))}
-              {actionsColumn && <HeaderActionTableCell />}
-            </MuiTableRow>
-          </TableHead>
-        )}
-        <TableBody>{children}</TableBody>
-      </MuiTable>
-    </TableContainer>
-  );
-};
-
-export interface TableRowProps extends Pick<MuiTableRowProps, "onClick"> {
-  children?: React.ReactNode;
-  defaultCellValue?: React.ReactNode;
-}
-
-export const TableRow = ({ children = [], onClick, defaultCellValue }: TableRowProps) => (
-  <StyledTableRow onClick={onClick}>
-    {React.Children.map(children, (value, index) => (
-      // eslint-disable-next-line react/no-array-index-key
-      <TableCell key={index}>
-        {value === null && defaultCellValue !== undefined ? defaultCellValue : value}
-      </TableCell>
-    ))}
-  </StyledTableRow>
-);
+export { TableCell, Table, TableContainer, TableRow, TableRowAction, TableRowActions };

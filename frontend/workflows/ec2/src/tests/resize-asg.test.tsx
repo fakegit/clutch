@@ -1,18 +1,20 @@
 import React from "react";
-import { shallow } from "enzyme";
+import { BrowserRouter } from "react-router-dom";
+import { ThemeProvider } from "@clutch-sh/core/src/Theme";
+import { render } from "@testing-library/react";
+
+import "@testing-library/jest-dom";
 
 import ResizeAutoscalingGroup from "../resize-asg";
 
-describe("Resize Autoscaling Group workflow", () => {
-  let component;
+test("renders correctly", () => {
+  const { asFragment } = render(
+    <BrowserRouter>
+      <ThemeProvider>
+        <ResizeAutoscalingGroup resolverType="clutch.aws.ec2.v1.AutoscalingGroup" />
+      </ThemeProvider>
+    </BrowserRouter>
+  );
 
-  beforeAll(() => {
-    component = shallow(
-      <ResizeAutoscalingGroup resolverType="clutch.aws.ec2.v1.AutoscalingGroup" />
-    );
-  });
-
-  it("renders correctly", () => {
-    expect(component.debug()).toMatchSnapshot();
-  });
+  expect(asFragment()).toMatchSnapshot();
 });

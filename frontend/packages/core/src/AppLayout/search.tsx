@@ -1,7 +1,9 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import styled from "@emotion/styled";
+import CloseIcon from "@mui/icons-material/Close";
+import SearchIcon from "@mui/icons-material/Search";
 import {
+  alpha,
   ClickAwayListener,
   Grid,
   Icon,
@@ -9,23 +11,24 @@ import {
   InputAdornment as MuiInputAdornment,
   Popper as MuiPopper,
   TextField,
+  TextFieldProps,
+  Theme,
   Typography,
-} from "@material-ui/core";
-import CloseIcon from "@material-ui/icons/Close";
-import SearchIcon from "@material-ui/icons/Search";
-import type { AutocompleteRenderInputParams } from "@material-ui/lab/Autocomplete";
-import Autocomplete from "@material-ui/lab/Autocomplete";
-import type { FilterOptionsState } from "@material-ui/lab/useAutocomplete";
+} from "@mui/material";
+import type { AutocompleteRenderInputParams } from "@mui/material/Autocomplete";
+import Autocomplete from "@mui/material/Autocomplete";
+import type { FilterOptionsState } from "@mui/material/useAutocomplete";
 import _ from "lodash";
 
 import { useAppContext } from "../Contexts";
+import { useNavigate } from "../navigation";
 
 import type { SearchIndex } from "./utils";
-import { searchIndexes } from "./utils";
+import { filterHiddenRoutes, searchIndexes } from "./utils";
 
 const hotKey = "/";
 
-const InputField = styled(TextField)({
+const InputField: React.FC<TextFieldProps> = styled(TextField)(({ theme }: { theme: Theme }) => ({
   // input field
   maxWidth: "551px",
   minWidth: "551px",
@@ -34,13 +37,16 @@ const InputField = styled(TextField)({
   },
   ".MuiInputBase-root": {
     height: "46px",
-    border: "1px solid #3548d4",
+    border: `1px solid ${theme.palette.primary[600]}`,
     borderRadius: "4px",
-    background: "#ffffff",
+    background: theme.palette.contrastColor,
+    "&.Mui-focused fieldset": {
+      border: "none",
+    },
   },
   // input text color
   ".MuiAutocomplete-input": {
-    color: "#0d1030",
+    color: theme.palette.secondary[900],
   },
 
   // close icon's container
@@ -51,14 +57,14 @@ const InputField = styled(TextField)({
       borderRadius: "30px",
       marginRight: "8px",
       "&:hover": {
-        background: "#e7e7ea",
+        background: theme.palette.secondary[200],
       },
       "&:active": {
-        background: "#DBDBE0",
+        background: theme.palette.secondary[300],
       },
     },
   },
-});
+}));
 
 // search's result options container
 const ResultGrid = styled(Grid)({
@@ -67,55 +73,59 @@ const ResultGrid = styled(Grid)({
 });
 
 // search's result options
-const ResultLabel = styled(Typography)({
-  color: "#0d1030",
+const ResultLabel = styled(Typography)(({ theme }: { theme: Theme }) => ({
+  color: theme.palette.secondary[900],
   fontSize: "14px",
-});
+}));
 
 // main search icon on header
-const SearchIconButton = styled(IconButton)({
-  color: "#ffffff",
+const SearchIconButton = styled(IconButton)(({ theme }: { theme: Theme }) => ({
+  color: theme.palette.contrastColor,
   fontSize: "24px",
   padding: "12px",
   marginRight: "8px",
   "&:hover": {
-    background: "#2d3db4",
+    background: theme.palette.primary[600],
   },
   "&:active": {
-    background: "#2938a5",
+    background: theme.palette.primary[700],
   },
-});
+}));
 
 // search icon in input field
-const StartInputAdornment = styled(MuiInputAdornment)({
-  color: "#0c0b31",
+const StartInputAdornment = styled(MuiInputAdornment)(({ theme }: { theme: Theme }) => ({
+  color: theme.palette.secondary[900],
   marginLeft: "8px",
-});
+}));
 
 // closed icon svg
-const StyledCloseIcon = styled(Icon)({
-  color: "#0c0b31",
+const StyledCloseIcon = styled(Icon)(({ theme }: { theme: Theme }) => ({
+  color: theme.palette.secondary[900],
   fontSize: "24px",
-});
+}));
 
 // popper containing the search result options
-const Popper = styled(MuiPopper)({
-  ".MuiAutocomplete-paper": {
-    border: "1px solid #e7e7ea",
-    boxShadow: "0px 5px 15px rgba(53, 72, 212, 0.2)",
-  },
-  ".MuiAutocomplete-option": {
-    height: "48px",
-    padding: "0px",
-  },
-  ".MuiAutocomplete-option[data-focus='true']": {
-    background: "#ebedfb",
+const Popper = styled(MuiPopper)(({ theme }: { theme: Theme }) => ({
+  ".MuiPaper-root": {
+    border: `1px solid ${theme.palette.secondary[100]}`,
+    boxShadow: `0px 5px 15px ${alpha(theme.palette.primary[600], 0.2)}`,
+
+    "> .MuiAutocomplete-listbox": {
+      "> .MuiAutocomplete-option": {
+        height: "48px",
+        padding: "0px",
+
+        "&.Mui-focused": {
+          background: theme.palette.primary[200],
+        },
+      },
+    },
   },
   ".MuiAutocomplete-noOptions": {
     fontSize: "14px",
-    color: "#0d1030",
+    color: theme.palette.secondary[900],
   },
-});
+}));
 
 const renderPopper = props => {
   return <Popper {...props} />;
@@ -130,6 +140,7 @@ const CustomCloseIcon: React.FC = () => {
 };
 
 const Input = (params: AutocompleteRenderInputParams): React.ReactNode => {
+  const { InputProps } = params;
   const searchRef = React.useRef();
   const handleKeyPress = (event: KeyboardEvent) => {
     if (searchRef.current) {
@@ -155,14 +166,14 @@ const Input = (params: AutocompleteRenderInputParams): React.ReactNode => {
       fullWidth
       inputRef={searchRef}
       InputProps={{
-        ...params.InputProps,
+        ...InputProps,
         disableUnderline: true,
         startAdornment: (
           <>
             <StartInputAdornment position="start">
               <SearchIcon />
             </StartInputAdornment>
-            {params.InputProps.startAdornment}
+            {InputProps.startAdornment}
           </>
         ),
       }}
@@ -183,26 +194,27 @@ const Result: React.FC<ResultProps> = ({ option, handleSelection }) => (
   </ResultGrid>
 );
 
-const filterResults = (searchOptions: SearchIndex[], state: FilterOptionsState<SearchIndex>) => {
-  return _.filter(searchOptions, o => {
-    return o.label.toLowerCase().includes(state.inputValue.toLowerCase());
-  });
-};
+const filterResults = (searchOptions: SearchIndex[], state: FilterOptionsState<SearchIndex>) =>
+  _.filter(searchOptions, o => o.label.toLowerCase().includes(state.inputValue.toLowerCase()));
 
 const SearchField: React.FC = () => {
   const { workflows } = useAppContext();
   const navigate = useNavigate();
-  const options = searchIndexes(workflows);
+  const options = searchIndexes(filterHiddenRoutes(workflows));
   const [inputValue, setInputValue] = React.useState("");
   const [showOptions, setShowOptions] = React.useState(false);
   const [open, setOpen] = React.useState(false);
 
-  const renderResult = (option: SearchIndex) => {
+  const renderResult = (props, option: SearchIndex) => {
     const handleSelection = () => {
       navigate(option.path);
     };
 
-    return <Result option={option} handleSelection={handleSelection} />;
+    return (
+      <li {...props}>
+        <Result option={option} handleSelection={handleSelection} />
+      </li>
+    );
   };
 
   const onInputChange = (__: React.ChangeEvent<{}>, value: string) => {
@@ -213,12 +225,13 @@ const SearchField: React.FC = () => {
       setShowOptions(true);
       setInputValue(value);
     }
-    const option = _.find(options, o => {
-      return o.label === value;
-    });
+
+    // If full match will auto navigate user to the workflow
+    const option = _.find(options, o => o.label.toLowerCase() === value.toLowerCase());
     if (option !== undefined) {
       setShowOptions(false);
       setInputValue("");
+      navigate(option.path);
     }
   };
 
@@ -249,11 +262,16 @@ const SearchField: React.FC = () => {
 
   // If workflow selected by pressing enter/return,
   // update the open state to collapse search bar to search icon
-  function handleListKeyDown(event) {
+  const handleListKeyDown = event => {
     if (event.key === "Enter") {
       event.preventDefault();
       setOpen(false);
     }
+  };
+
+  // Will hide the search field if there are no visible workflows
+  if (!workflows.length) {
+    return null;
   }
 
   return (
@@ -273,7 +291,7 @@ const SearchField: React.FC = () => {
             onClose={onOptionsClose}
             options={options}
             filterOptions={filterResults}
-            getOptionLabel={x => x.label}
+            getOptionLabel={x => (typeof x === "object" ? x.label : x)}
             PopperComponent={renderPopper}
             popupIcon={<CustomCloseIcon />}
             forcePopupIcon={!!showOptions}

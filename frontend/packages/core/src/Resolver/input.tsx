@@ -1,9 +1,10 @@
 import React from "react";
 import { useForm } from "react-hook-form";
-import { useSearchParams } from "react-router-dom";
 import type { clutch } from "@clutch-sh/api";
 import styled from "@emotion/styled";
-import SearchIcon from "@material-ui/icons/Search";
+import { DevTool } from "@hookform/devtools";
+import SearchIcon from "@mui/icons-material/Search";
+import { Stack } from "@mui/material";
 
 import {
   Accordion,
@@ -14,7 +15,8 @@ import {
 } from "../accordion";
 import { Button } from "../button";
 import { Alert } from "../Feedback";
-import TextField from "../Input/text-field";
+import { TextField } from "../Input/text-field";
+import { useSearchParams } from "../navigation";
 import { client } from "../Network";
 
 import type { ChangeEventTarget } from "./hydrator";
@@ -30,6 +32,7 @@ interface QueryResolverProps {
   inputType: string;
   schemas: clutch.resolver.v1.Schema[];
   submitHandler: any;
+  enableAutocomplete?: boolean;
 }
 
 const autoComplete = async (type: string, search: string): Promise<any> => {
@@ -42,12 +45,18 @@ const autoComplete = async (type: string, search: string): Promise<any> => {
   const response = await client.post("/v1/resolver/autocomplete", {
     want: `type.googleapis.com/${type}`,
     search,
+    caseSensitive: false,
   });
 
   return { results: response?.data?.results || [] };
 };
 
-const QueryResolver: React.FC<QueryResolverProps> = ({ inputType, schemas, submitHandler }) => {
+const QueryResolver: React.FC<QueryResolverProps> = ({
+  inputType,
+  schemas,
+  submitHandler,
+  enableAutocomplete = true,
+}) => {
   const validation = useForm({
     mode: "onSubmit",
     reValidateMode: "onSubmit",
@@ -65,12 +74,15 @@ const QueryResolver: React.FC<QueryResolverProps> = ({ inputType, schemas, submi
   };
 
   // If there is at least 1 schema that has the ability to autocomplete we will enable it.
+  // enableAutocomplete's default value is true.  We only use it (set it to false) when we want to override and disable autocomplete at the workflow level rather than the schema level.
   const isAutoCompleteEnabled =
-    schemas.filter(schema => schema?.metadata?.search?.autocompleteEnabled === true).length >= 1;
+    schemas.filter(schema => schema?.metadata?.search?.autocompleteEnabled === true).length >= 1 &&
+    enableAutocomplete;
 
-  const error = validation.errors?.query;
+  const error = validation.formState.errors?.query;
   return (
     <Form onSubmit={validation.handleSubmit(() => submitHandler({ query: queryData }))} noValidate>
+      {process.env.REACT_APP_DEBUG_FORMS && <DevTool control={validation.control} />}
       <TextField
         label={typeLabel}
         name="query"
@@ -79,11 +91,11 @@ const QueryResolver: React.FC<QueryResolverProps> = ({ inputType, schemas, submi
         onChange={handleChanges}
         onKeyDown={handleChanges}
         onFocus={handleChanges}
-        inputRef={validation.register({ required: true })}
         error={!!error}
         helperText={error?.message || error?.type || ""}
         endAdornment={<SearchIcon />}
         autocompleteCallback={isAutoCompleteEnabled ? v => autoComplete(inputType, v) : undefined}
+        formRegistration={validation.register}
       />
     </Form>
   );
@@ -118,6 +130,7 @@ const SchemaResolver = ({ schema, expanded, onClick, submitHandler }: SchemaReso
 
   return (
     <Form noValidate onSubmit={schemaValidation.handleSubmit(() => submitHandler(data))}>
+      {/* {process.env.REACT_APP_DEBUG_FORMS && <DevTool control={schemaValidation.control} />} */}
       <Accordion
         title={`Search by ${schema.metadata.displayName}`}
         expanded={expanded}
@@ -127,7 +140,9 @@ const SchemaResolver = ({ schema, expanded, onClick, submitHandler }: SchemaReso
           {schema.error ? (
             <Alert severity="error">Schema Error: ${schema.error.message}</Alert>
           ) : (
-            schema.fields.map(field => hydrateField(field, onChange, schemaValidation))
+            <Stack spacing={2}>
+              {schema.fields.map(field => hydrateField(field, onChange, schemaValidation))}
+            </Stack>
           )}
         </SchemaDetails>
         <AccordionDivider />

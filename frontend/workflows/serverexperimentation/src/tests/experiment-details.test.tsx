@@ -1,58 +1,47 @@
 import React from "react";
-import { shallow } from "enzyme";
+import { BrowserRouter } from "react-router-dom";
+import { ThemeProvider } from "@clutch-sh/core/src/Theme";
+import { render } from "@testing-library/react";
 
-import FormFields from "../form-fields";
+import "@testing-library/jest-dom";
+
 import { ExperimentDetails } from "../start-experiment";
 
-jest.mock("react-router-dom", () => {
-  return {
-    ...jest.requireActual("react-router-dom"),
-    useNavigate: jest.fn(),
-  };
+const setup = (props?) => {
+  const utils = render(
+    <BrowserRouter>
+      <ThemeProvider>
+        <ExperimentDetails environments={[]} onStart={() => {}} {...props} />
+      </ThemeProvider>
+    </BrowserRouter>
+  );
+
+  const { asFragment } = utils;
+
+  return { utils, asFragment };
+};
+
+test("renders correctly", () => {
+  const { asFragment } = setup({
+    upstreamClusterTypeSelectionEnabled: false,
+  });
+
+  expect(asFragment()).toMatchSnapshot();
 });
 
-describe("Start Experiment workflow", () => {
-  it("renders correctly", () => {
-    const component = shallow(
-      <ExperimentDetails
-        upstreamClusterTypeSelectionEnabled={false}
-        hostsPercentageBasedTargetingEnabled={false}
-        onStart={() => {}}
-      />
-    );
-    expect(component.find(FormFields).dive().debug()).toMatchSnapshot();
+test("renders correctly with upstream cluster type selection enabled", () => {
+  const { asFragment } = setup({
+    upstreamClusterTypeSelectionEnabled: true,
   });
 
-  it("renders correctly with upstream cluster type selection enabled", () => {
-    const component = shallow(
-      <ExperimentDetails
-        upstreamClusterTypeSelectionEnabled
-        hostsPercentageBasedTargetingEnabled={false}
-        onStart={() => {}}
-      />
-    );
-    expect(component.find(FormFields).dive().debug()).toMatchSnapshot();
-  });
+  expect(asFragment()).toMatchSnapshot();
+});
 
-  it("renders correctly with host percentage based faults enabled", () => {
-    const component = shallow(
-      <ExperimentDetails
-        upstreamClusterTypeSelectionEnabled={false}
-        hostsPercentageBasedTargetingEnabled={false}
-        onStart={() => {}}
-      />
-    );
-    expect(component.find(FormFields).dive().debug()).toMatchSnapshot();
+test("renders correctly with environments", () => {
+  const { utils, asFragment } = setup({
+    upstreamClusterTypeSelectionEnabled: false,
+    environments: [{ value: "staging" }],
   });
-
-  it("renders correctly with host percentage based faults and upstream cluster type selecion enabled", () => {
-    const component = shallow(
-      <ExperimentDetails
-        upstreamClusterTypeSelectionEnabled
-        hostsPercentageBasedTargetingEnabled
-        onStart={() => {}}
-      />
-    );
-    expect(component.find(FormFields).dive().debug()).toMatchSnapshot();
-  });
+  expect(utils.getByText(/Environment/i, { selector: "label" })).toBeVisible();
+  expect(asFragment().querySelector("#environmentValue-select")).toBeEnabled();
 });

@@ -5,7 +5,7 @@ import (
 	"math/rand"
 
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	batchv1 "k8s.io/api/batch/v1"
 
@@ -15,6 +15,15 @@ import (
 )
 
 type svc struct{}
+
+func (s *svc) GetPodLogs(ctx context.Context, clientset, cluster, namespace, name string, opts *k8sv1.PodLogsOptions) (*k8sv1.GetPodLogsResponse, error) {
+	return &k8sv1.GetPodLogsResponse{Logs: []*k8sv1.PodLogLine{
+		{Ts: "1", S: "Hello"},
+		{Ts: "2", S: "world"},
+		{Ts: "3", S: "Fizz"},
+		{Ts: "4", S: "Buzz"},
+	}}, nil
+}
 
 func (s *svc) DescribeHPA(ctx context.Context, clientset, cluster, namespace, name string) (*k8sv1.HPA, error) {
 	hpa := &k8sv1.HPA{
@@ -62,7 +71,7 @@ func (s *svc) DescribePod(_ context.Context, clientset, cluster, namespace, name
 
 func (s *svc) ListPods(_ context.Context, clientset, cluster, namespace string, listOptions *k8sv1.ListOptions) ([]*k8sv1.Pod, error) {
 	pods := []*k8sv1.Pod{
-		&k8sv1.Pod{
+		{
 			Cluster:     cluster,
 			Namespace:   namespace,
 			Name:        "name1",
@@ -72,7 +81,7 @@ func (s *svc) ListPods(_ context.Context, clientset, cluster, namespace string, 
 			Labels:      listOptions.Labels,
 			Annotations: map[string]string{"Key": "value"},
 		},
-		&k8sv1.Pod{
+		{
 			Cluster:     cluster,
 			Namespace:   namespace,
 			Name:        "name2",
@@ -98,14 +107,14 @@ func (*svc) DescribeDeployment(ctx context.Context, clientset, cluster, namespac
 
 func (s *svc) ListDeployments(_ context.Context, clientset, cluster, namespace string, listOptions *k8sv1.ListOptions) ([]*k8sv1.Deployment, error) {
 	deployments := []*k8sv1.Deployment{
-		&k8sv1.Deployment{
+		{
 			Cluster:     cluster,
 			Namespace:   namespace,
 			Name:        "deployment1",
 			Labels:      map[string]string{"Key": "value"},
 			Annotations: map[string]string{"Key": "value"},
 		},
-		&k8sv1.Deployment{
+		{
 			Cluster:     cluster,
 			Namespace:   namespace,
 			Name:        "deployment2",
@@ -136,14 +145,14 @@ func (*svc) DescribeStatefulSet(ctx context.Context, clientset, cluster, namespa
 
 func (s *svc) ListStatefulSets(_ context.Context, clientset, cluster, namespace string, listOptions *k8sv1.ListOptions) ([]*k8sv1.StatefulSet, error) {
 	statefulsets := []*k8sv1.StatefulSet{
-		&k8sv1.StatefulSet{
+		{
 			Cluster:     cluster,
 			Namespace:   namespace,
 			Name:        "statefulset1",
 			Labels:      map[string]string{"Key": "value"},
 			Annotations: map[string]string{"Key": "value"},
 		},
-		&k8sv1.StatefulSet{
+		{
 			Cluster:     cluster,
 			Namespace:   namespace,
 			Name:        "statefulset2",
@@ -181,6 +190,22 @@ func (s *svc) DescribeService(_ context.Context, clientset, cluster, namespace, 
 	}, nil
 }
 
+func (s *svc) ListServices(_ context.Context, clientset, cluster, namespace string, listOptions *k8sv1.ListOptions) ([]*k8sv1.Service, error) {
+	services := []*k8sv1.Service{
+		{
+			Cluster:   "fake-cluster-name",
+			Namespace: namespace,
+			Name:      "service1",
+		},
+		{
+			Cluster:   "fake-cluster-name",
+			Namespace: namespace,
+			Name:      "service2",
+		},
+	}
+	return services, nil
+}
+
 func (*svc) DeleteService(ctx context.Context, clientset, cluster, namespace, name string) error {
 	return nil
 }
@@ -198,7 +223,7 @@ func (s *svc) DescribeCronJob(_ context.Context, clientset, cluster, namespace, 
 
 func (s *svc) ListCronJobs(_ context.Context, clientset, cluster, namespace string, listOptions *k8sv1.ListOptions) ([]*k8sv1.CronJob, error) {
 	crons := []*k8sv1.CronJob{
-		&k8sv1.CronJob{
+		{
 			Cluster:     "fake-cluster-name",
 			Namespace:   namespace,
 			Name:        "cronjob1",
@@ -206,7 +231,7 @@ func (s *svc) ListCronJobs(_ context.Context, clientset, cluster, namespace stri
 			Labels:      map[string]string{"Key": "value"},
 			Annotations: map[string]string{"Key": "value"},
 		},
-		&k8sv1.CronJob{
+		{
 			Cluster:     "fake-cluster-name",
 			Namespace:   namespace,
 			Name:        "cronjob2",
@@ -238,17 +263,31 @@ func (*svc) DeleteConfigMap(ctx context.Context, clientset, cluster, namespace, 
 
 func (s *svc) ListConfigMaps(_ context.Context, clientset, cluster, namespace string, listOptions *k8sv1.ListOptions) ([]*k8sv1.ConfigMap, error) {
 	configMaps := []*k8sv1.ConfigMap{
-		&k8sv1.ConfigMap{
+		{
 			Cluster:     "fake-cluster-name",
 			Namespace:   namespace,
 			Name:        "name1",
 			Labels:      listOptions.Labels,
 			Annotations: map[string]string{"Key": "value"},
 		},
-		&k8sv1.ConfigMap{
+		{
 			Cluster:     "fake-cluster-name",
 			Namespace:   namespace,
 			Name:        "name2",
+			Labels:      listOptions.Labels,
+			Annotations: map[string]string{"Key": "value"},
+		},
+		{
+			Cluster:     "fake-cluster-name",
+			Namespace:   namespace,
+			Name:        "foo-bar",
+			Labels:      listOptions.Labels,
+			Annotations: map[string]string{"Key": "value"},
+		},
+		{
+			Cluster:     "fake-cluster-name",
+			Namespace:   namespace,
+			Name:        "stuff-things",
 			Labels:      listOptions.Labels,
 			Annotations: map[string]string{"Key": "value"},
 		},
@@ -256,16 +295,26 @@ func (s *svc) ListConfigMaps(_ context.Context, clientset, cluster, namespace st
 	return configMaps, nil
 }
 
+func (s *svc) DescribeJob(_ context.Context, clientset, cluster, namespace, name string) (*k8sv1.Job, error) {
+	return &k8sv1.Job{
+		Cluster:     "fake-cluster-name",
+		Namespace:   namespace,
+		Name:        name,
+		Labels:      map[string]string{"Key": "value"},
+		Annotations: map[string]string{"Key": "value"},
+	}, nil
+}
+
 func (s *svc) ListJobs(_ context.Context, clientset, cluster, namespace string, listOptions *k8sv1.ListOptions) ([]*k8sv1.Job, error) {
 	jobs := []*k8sv1.Job{
-		&k8sv1.Job{
+		{
 			Cluster:     "fake-cluster-name",
 			Namespace:   namespace,
 			Name:        "name1",
 			Labels:      listOptions.Labels,
 			Annotations: map[string]string{"Key": "value"},
 		},
-		&k8sv1.Job{
+		{
 			Cluster:     "fake-cluster-name",
 			Namespace:   namespace,
 			Name:        "name2",
@@ -295,8 +344,38 @@ func (s *svc) DescribeNamespace(_ context.Context, clientset, cluster, name stri
 	}, nil
 }
 
+func (s *svc) ListEvents(_ context.Context, clientset, cluster, namespace, name string, kind k8sv1.ObjectKind) ([]*k8sv1.Event, error) {
+	return []*k8sv1.Event{
+		{
+			Name:               "event1",
+			Reason:             "reason-1",
+			Description:        "description-1",
+			Cluster:            "fake-cluster-name",
+			Namespace:          namespace,
+			InvolvedObjectName: "pod1",
+			Kind:               kind,
+		},
+	}, nil
+}
+
+func (s *svc) DescribeNode(_ context.Context, clientset, cluster, name string) (*k8sv1.Node, error) {
+	return &k8sv1.Node{
+		Cluster:       "fake-cluster-name",
+		Name:          name,
+		Unschedulable: false,
+	}, nil
+}
+
+func (s *svc) UpdateNode(_ context.Context, clientset, cluster, name string, unschedulable bool) error {
+	return nil
+}
+
 func (*svc) Clientsets(ctx context.Context) ([]string, error) {
 	return []string{"fake-user@fake-cluster"}, nil
+}
+
+func (*svc) GetK8sClientset(ctx context.Context, clientset string) (k8sservice.ContextClientset, error) {
+	return nil, nil
 }
 
 func New() k8sservice.Service {
@@ -305,4 +384,17 @@ func New() k8sservice.Service {
 
 func NewAsService(*any.Any, *zap.Logger, tally.Scope) (service.Service, error) {
 	return New(), nil
+}
+
+func (s *svc) ListNamespaceEvents(_ context.Context, clientset, cluster, namespace string, types []k8sv1.EventType) ([]*k8sv1.Event, error) {
+	return []*k8sv1.Event{
+		{
+			Name:               "event1",
+			Reason:             "reason-1",
+			Description:        "description-1",
+			Cluster:            "fake-cluster-name",
+			Namespace:          namespace,
+			InvolvedObjectName: "pod1",
+		},
+	}, nil
 }

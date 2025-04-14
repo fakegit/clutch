@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -28,7 +28,7 @@ const Name = "clutch.service.topology"
 type Service interface {
 	GetTopology(ctx context.Context) error
 	Search(ctx context.Context, search *topologyv1.SearchRequest) ([]*topologyv1.Resource, string, error)
-	Autocomplete(ctx context.Context, typeURL, search string, limit uint64) ([]*topologyv1.Resource, error)
+	Autocomplete(ctx context.Context, typeURL, search string, limit uint64, caseSensitive bool) ([]*topologyv1.Resource, error)
 }
 
 type client struct {
@@ -101,11 +101,18 @@ func New(cfg *any.Any, logger *zap.Logger, scope tally.Scope) (service.Service, 
 
 	ctx, ctxCancelFunc := context.WithCancel(context.Background())
 	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(
+		sigc,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGQUIT,
+		syscall.SIGTERM,
+	)
 	go func() {
 		<-sigc
 		c.log.Info("Caught shutdown signal, shutting down topology caching and releasing advisory lock")
 		ctxCancelFunc()
+		signal.Stop(sigc)
 	}()
 
 	c.log.Info("Topology caching is enabled")
@@ -180,7 +187,7 @@ func (c *client) Search(ctx context.Context, req *topologyv1.SearchRequest) ([]*
 	return results, nextPageTokenStr, nil
 }
 
-func (c *client) Autocomplete(ctx context.Context, typeURL, search string, limit uint64) ([]*topologyv1.Resource, error) {
+func (c *client) Autocomplete(ctx context.Context, typeURL, search string, limit uint64, caseSensitive bool) ([]*topologyv1.Resource, error) {
 	searchRequest := &topologyv1.SearchRequest{
 		PageToken: "0",
 		Limit:     limit,
@@ -194,6 +201,7 @@ func (c *client) Autocomplete(ctx context.Context, typeURL, search string, limit
 				Field: "column.id",
 				Text:  search,
 			},
+			CaseSensitive: caseSensitive,
 		},
 	}
 

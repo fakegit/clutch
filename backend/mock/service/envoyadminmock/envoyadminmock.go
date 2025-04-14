@@ -2,11 +2,11 @@ package envoyadminmock
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -40,7 +40,7 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		Status:     "OK",
 		StatusCode: 200,
 		Request:    req,
-		Body:       ioutil.NopCloser(strings.NewReader(resp)),
+		Body:       io.NopCloser(strings.NewReader(resp)),
 	}, nil
 }
 

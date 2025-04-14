@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,40 +31,320 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
-// define the regex for a UUID once up-front
-var _github_uuidPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+// Validate checks the field values on AppConfig with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *AppConfig) Validate() error {
+	return m.validate(false)
+}
 
-// Validate checks the field values on Config with the rules defined in the
-// proto definition for this message. If any rules are violated, an error is returned.
-func (m *Config) Validate() error {
+// ValidateAll checks the field values on AppConfig with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in AppConfigMultiError, or nil
+// if none found.
+func (m *AppConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AppConfig) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	switch m.Auth.(type) {
+	var errors []error
 
-	case *Config_AccessToken:
+	if m.GetAppId() < 1 {
+		err := AppConfigValidationError{
+			field:  "AppId",
+			reason: "value must be greater than or equal to 1",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
-		if len(m.GetAccessToken()) < 1 {
-			return ConfigValidationError{
-				field:  "AccessToken",
+	if m.GetInstallationId() < 1 {
+		err := AppConfigValidationError{
+			field:  "InstallationId",
+			reason: "value must be greater than or equal to 1",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	oneofPemPresent := false
+	switch v := m.Pem.(type) {
+	case *AppConfig_KeyPem:
+		if v == nil {
+			err := AppConfigValidationError{
+				field:  "Pem",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofPemPresent = true
+
+		if len(m.GetKeyPem()) < 1 {
+			err := AppConfigValidationError{
+				field:  "KeyPem",
 				reason: "value length must be at least 1 bytes",
 			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	case *AppConfig_Base64Pem:
+		if v == nil {
+			err := AppConfigValidationError{
+				field:  "Pem",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofPemPresent = true
+
+		if len(m.GetBase64Pem()) < 1 {
+			err := AppConfigValidationError{
+				field:  "Base64Pem",
+				reason: "value length must be at least 1 bytes",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
 		}
 
 	default:
-		return ConfigValidationError{
-			field:  "Auth",
+		_ = v // ensures v is used
+	}
+	if !oneofPemPresent {
+		err := AppConfigValidationError{
+			field:  "Pem",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
+	if len(errors) > 0 {
+		return AppConfigMultiError(errors)
 	}
 
 	return nil
 }
+
+// AppConfigMultiError is an error wrapping multiple validation errors returned
+// by AppConfig.ValidateAll() if the designated constraints aren't met.
+type AppConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AppConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AppConfigMultiError) AllErrors() []error { return m }
+
+// AppConfigValidationError is the validation error returned by
+// AppConfig.Validate if the designated constraints aren't met.
+type AppConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AppConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AppConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AppConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AppConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AppConfigValidationError) ErrorName() string { return "AppConfigValidationError" }
+
+// Error satisfies the builtin error interface
+func (e AppConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAppConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AppConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AppConfigValidationError{}
+
+// Validate checks the field values on Config with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *Config) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Config with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in ConfigMultiError, or nil if none found.
+func (m *Config) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Config) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	oneofAuthPresent := false
+	switch v := m.Auth.(type) {
+	case *Config_AccessToken:
+		if v == nil {
+			err := ConfigValidationError{
+				field:  "Auth",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofAuthPresent = true
+
+		if len(m.GetAccessToken()) < 1 {
+			err := ConfigValidationError{
+				field:  "AccessToken",
+				reason: "value length must be at least 1 bytes",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	case *Config_AppConfig:
+		if v == nil {
+			err := ConfigValidationError{
+				field:  "Auth",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofAuthPresent = true
+
+		if all {
+			switch v := interface{}(m.GetAppConfig()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConfigValidationError{
+						field:  "AppConfig",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConfigValidationError{
+						field:  "AppConfig",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetAppConfig()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConfigValidationError{
+					field:  "AppConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
+	}
+	if !oneofAuthPresent {
+		err := ConfigValidationError{
+			field:  "Auth",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return ConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// ConfigMultiError is an error wrapping multiple validation errors returned by
+// Config.ValidateAll() if the designated constraints aren't met.
+type ConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ConfigMultiError) AllErrors() []error { return m }
 
 // ConfigValidationError is the validation error returned by Config.Validate if
 // the designated constraints aren't met.

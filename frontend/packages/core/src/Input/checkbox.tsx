@@ -1,87 +1,125 @@
 import * as React from "react";
-import styled from "@emotion/styled";
-import type { CheckboxProps as MuiCheckboxProps } from "@material-ui/core";
+import CheckIcon from "@mui/icons-material/Check";
+import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
+import type { CheckboxProps as MuiCheckboxProps, Theme } from "@mui/material";
 import {
+  alpha,
   Checkbox as MuiCheckbox,
   FormControl as MuiFormControl,
   FormControlLabel,
   FormGroup,
   FormLabel,
   Grid,
-} from "@material-ui/core";
-import CheckIcon from "@material-ui/icons/Check";
+} from "@mui/material";
+
+import styled from "../styled";
 
 const FormControl = styled(MuiFormControl)({
   width: "75%",
 });
 
-const StyledCheckbox = styled(MuiCheckbox)({
-  color: "#6e7083",
-  height: "48px",
-  width: "48px",
-  borderRadius: "30px",
+const StyledCheckbox = styled(MuiCheckbox)(({ theme }: { theme: Theme }) => ({
+  color: theme.palette.secondary[400],
+  borderRadius: "50%",
   "&:hover": {
-    background: "#f5f6fd",
+    background: theme.palette.primary[100],
   },
   "&:active": {
-    background: "#d7daf6",
+    background: theme.palette.primary[300],
   },
-  "&.Mui-checked": {
-    color: "#ffffff",
+  "&.Mui-checked, &.MuiCheckbox-indeterminate": {
+    color: theme.palette.contrastColor,
     "&:hover": {
-      background: "#f5f6fd",
+      background: theme.palette.primary[100],
     },
     "&:active": {
-      background: "#d7daf6",
+      background: theme.palette.primary[300],
     },
     "&.Mui-disabled": {
-      color: "#e7e7ea",
       ".MuiIconButton-label": {
-        color: "rgba(13, 16, 48, 0.38)",
+        color: alpha(theme.palette.secondary[900], 0.38),
       },
     },
   },
-});
+}));
 
-const Icon = styled.div(
+type Size = "20px" | "24px";
+
+interface StyledIconProps {
+  $disabled: CheckboxProps["disabled"];
+  $size: Size;
+}
+
+const Icon = styled("div")<StyledIconProps>(
   {
     borderRadius: "2px",
     boxSizing: "border-box",
-    height: "24px",
-    width: "24px",
   },
-  props => ({
-    border: props["data-disabled"] ? "1px solid #e7e7ea" : "1px solid #6e7083",
+  props => ({ theme }: { theme: Theme }) => ({
+    height: props.$size,
+    width: props.$size,
+    border: props.$disabled
+      ? `1px solid ${theme.palette.secondary[200]}`
+      : `1px solid ${theme.palette.secondary[400]}`,
   })
 );
 
-const SelectedIcon = styled.div(
+const SelectedIcon = styled("div")<StyledIconProps>(
   {
     borderRadius: "2px",
     boxSizing: "border-box",
-    height: "24px",
-    width: "24px",
     ".MuiSvgIcon-root": {
       display: "block",
     },
   },
-  props => ({
-    background: props["data-disabled"] ? "#e7e7eA" : "#3548d4",
+  props => ({ theme }: { theme: Theme }) => ({
+    height: props.$size,
+    width: props.$size,
+    background: props.$disabled ? theme.palette.secondary[200] : theme.palette.primary[600],
+    ".MuiSvgIcon-root": {
+      height: props.$size,
+      width: props.$size,
+    },
   })
 );
 
 export interface CheckboxProps
-  extends Pick<MuiCheckboxProps, "checked" | "disabled" | "name" | "onChange"> {}
+  extends Pick<
+    MuiCheckboxProps,
+    "checked" | "disabled" | "indeterminate" | "name" | "onChange" | "size"
+  > {}
 
 // TODO (sperry): add 16px size variant
-const Checkbox: React.FC<CheckboxProps> = ({ checked, disabled, ...props }) => {
+const Checkbox: React.FC<CheckboxProps> = ({
+  checked,
+  disabled = false,
+  indeterminate,
+  size,
+  ...props
+}) => {
+  let sizePx;
+  switch (size) {
+    case "small":
+      sizePx = "20px";
+      break;
+    default:
+      sizePx = "24px";
+  }
+
   return (
     <StyledCheckbox
       checked={checked}
-      icon={<Icon data-disabled={disabled} />}
+      indeterminate={indeterminate}
+      size={size}
+      icon={<Icon $disabled={disabled} $size={sizePx} />}
       checkedIcon={
-        <SelectedIcon data-disabled={disabled}>
+        <SelectedIcon $disabled={disabled} $size={sizePx}>
           <CheckIcon />
+        </SelectedIcon>
+      }
+      indeterminateIcon={
+        <SelectedIcon $disabled={disabled} $size={sizePx}>
+          <HorizontalRuleIcon />
         </SelectedIcon>
       }
       {...props}

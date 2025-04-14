@@ -1,27 +1,30 @@
 import * as React from "react";
-import styled from "@emotion/styled";
-import { IconButton as MuiIconButton, TableRow } from "@material-ui/core";
-import ChevronRightIcon from "@material-ui/icons/ChevronRight";
-import KeyboardArrowDownIcon from "@material-ui/icons/KeyboardArrowDown";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import { IconButton as MuiIconButton, TableRow, Theme } from "@mui/material";
 
-import type { TableRowProps } from "./table";
-import { TableCell } from "./table";
+import styled from "../styled";
 
-const IconButton = styled(MuiIconButton)({
+import TableCell from "./components/TableCell";
+import type { TableRowProps } from "./types";
+
+const IconButton = styled(MuiIconButton)(({ theme }: { theme: Theme }) => ({
   padding: "0",
-  color: "#0D1030",
-});
-
-const ChevronRight = styled(ChevronRightIcon)(props => ({
-  color: props?.["data-disabled"] ? "#E7E7EA" : "unset",
+  color: theme.palette.secondary[900],
 }));
 
+const ChevronRight = styled(ChevronRightIcon)<{ $disabled: boolean }>(
+  props => ({ theme }: { theme: Theme }) => ({
+    color: props?.$disabled ? theme.palette.secondary[200] : "unset",
+  })
+);
+
 export interface AccordionRowProps {
-  headings: React.ReactElement[];
+  columns: React.ReactElement[];
   children: React.ReactElement<TableRowProps> | React.ReactElement<TableRowProps>[];
 }
 
-export const AccordionRow = ({ headings, children }: AccordionRowProps) => {
+export const AccordionRow = ({ columns, children }: AccordionRowProps) => {
   const [open, setOpen] = React.useState(false);
   const hasChildren = React.Children.count(children) !== 0;
 
@@ -33,14 +36,14 @@ export const AccordionRow = ({ headings, children }: AccordionRowProps) => {
   return (
     <>
       <TableRow>
-        {headings.map((heading: any, index: number) => {
+        {columns.map((heading: any, index: number) => {
           const icon = (
-            <IconButton onClick={onClick}>
-              {open ? <KeyboardArrowDownIcon /> : <ChevronRight data-disabled={!hasChildren} />}
+            <IconButton onClick={onClick} size="large">
+              {open ? <KeyboardArrowDownIcon /> : <ChevronRight $disabled={!hasChildren} />}
             </IconButton>
           );
           return (
-            <TableCell key={heading} data-border style={index === 0 ? { display: "flex" } : {}}>
+            <TableCell key={heading} border style={index === 0 ? { display: "flex" } : {}}>
               {index === 0 && icon}
               <div style={{ alignSelf: "center" }}>{heading}</div>
             </TableCell>

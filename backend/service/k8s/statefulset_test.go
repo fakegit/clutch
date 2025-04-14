@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -11,6 +12,11 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	k8sapiv1 "github.com/lyft/clutch/backend/api/k8s/v1"
+)
+
+var (
+	testTime1 = time.Date(2021, time.March, 1, 0, 0, 0, 0, time.UTC)
+	testTime2 = time.Date(2021, time.March, 2, 0, 0, 0, 0, time.UTC)
 )
 
 func testStatefulSetClientset() k8s.Interface {
@@ -30,7 +36,7 @@ func TestListStatefulSets(t *testing.T) {
 	cs := testStatefulSetClientset()
 	s := &svc{
 		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"foo": &ctxClientsetImpl{
+			clientsets: map[string]*ctxClientsetImpl{"foo": {
 				Interface: cs,
 				namespace: "default",
 				cluster:   "core-testing",
@@ -54,7 +60,7 @@ func TestUpdateStatefulSet(t *testing.T) {
 	cs := testStatefulSetClientset()
 	s := &svc{
 		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"foo": &ctxClientsetImpl{
+			clientsets: map[string]*ctxClientsetImpl{"foo": {
 				Interface: cs,
 				namespace: "default",
 				cluster:   "core-testing",
@@ -73,7 +79,7 @@ func TestUpdateStatefulSet(t *testing.T) {
 func TestMergeStatefulSetLabelsAndAnnotations(t *testing.T) {
 	t.Parallel()
 
-	var mergeLabelAnnotationsTestCases = []struct {
+	mergeLabelAnnotationsTestCases := []struct {
 		id     string
 		fields *k8sapiv1.UpdateStatefulSetRequest_Fields
 		expect *appsv1.StatefulSet
@@ -144,7 +150,6 @@ func TestMergeStatefulSetLabelsAndAnnotations(t *testing.T) {
 	}
 
 	for _, tt := range mergeLabelAnnotationsTestCases {
-		tt := tt
 		t.Run(tt.id, func(t *testing.T) {
 			t.Parallel()
 
@@ -164,7 +169,7 @@ func TestMergeStatefulSetLabelsAndAnnotations(t *testing.T) {
 func TestProtoForStatefulSetClusterName(t *testing.T) {
 	t.Parallel()
 
-	var statefulSetTestCases = []struct {
+	statefulSetTestCases := []struct {
 		id                  string
 		inputClusterName    string
 		expectedClusterName string
@@ -176,7 +181,9 @@ func TestProtoForStatefulSetClusterName(t *testing.T) {
 			expectedClusterName: "production",
 			statefulSet: &appsv1.StatefulSet{
 				ObjectMeta: metav1.ObjectMeta{
-					ClusterName: "production",
+					Labels: map[string]string{
+						clutchLabelClusterName: "production",
+					},
 				},
 			},
 		},
@@ -186,14 +193,15 @@ func TestProtoForStatefulSetClusterName(t *testing.T) {
 			expectedClusterName: "staging",
 			statefulSet: &appsv1.StatefulSet{
 				ObjectMeta: metav1.ObjectMeta{
-					ClusterName: "",
+					Labels: map[string]string{
+						clutchLabelClusterName: "",
+					},
 				},
 			},
 		},
 	}
 
 	for _, tt := range statefulSetTestCases {
-		tt := tt
 		t.Run(tt.id, func(t *testing.T) {
 			t.Parallel()
 
@@ -207,7 +215,7 @@ func TestDeleteStatefulSet(t *testing.T) {
 	cs := testStatefulSetClientset()
 	s := &svc{
 		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"foo": &ctxClientsetImpl{
+			clientsets: map[string]*ctxClientsetImpl{"foo": {
 				Interface: cs,
 				namespace: "default",
 				cluster:   "core-testing",
@@ -225,4 +233,56 @@ func TestDeleteStatefulSet(t *testing.T) {
 	// Not found.
 	_, err = s.DescribeStatefulSet(context.Background(), "foo", "core-testing", "testing-namespace", "testing-statefulSet-name")
 	assert.Error(t, err)
+}
+
+func TestProtoForStatus(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		id          string
+		statefulSet *appsv1.StatefulSet
+	}{
+		{
+			id: "foo",
+			statefulSet: &appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "testing-stateful-1",
+					Namespace:         "testing-namespace",
+					CreationTimestamp: metav1.NewTime(testTime1),
+				},
+				Status: appsv1.StatefulSetStatus{
+					Replicas:        60,
+					UpdatedReplicas: 60,
+					ReadyReplicas:   10,
+				},
+			},
+		},
+		{
+			id: "bar",
+			statefulSet: &appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "testing-stateful-2",
+					Namespace:         "testing-namespace",
+					CreationTimestamp: metav1.NewTime(testTime2),
+				},
+				Status: appsv1.StatefulSetStatus{
+					Replicas:        40,
+					UpdatedReplicas: 31,
+					ReadyReplicas:   3,
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.id, func(t *testing.T) {
+			t.Parallel()
+
+			statefulSet := ProtoForStatefulSet("", tt.statefulSet)
+			assert.Equal(t, tt.statefulSet.Status.Replicas, int32(statefulSet.Status.Replicas))
+			assert.Equal(t, tt.statefulSet.Status.UpdatedReplicas, int32(statefulSet.Status.UpdatedReplicas))
+			assert.Equal(t, tt.statefulSet.Status.ReadyReplicas, int32(statefulSet.Status.ReadyReplicas))
+			assert.NotNil(t, statefulSet.CreationTimeMillis)
+		})
+	}
 }

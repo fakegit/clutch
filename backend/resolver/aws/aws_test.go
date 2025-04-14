@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap/zaptest"
 
 	resolverv1 "github.com/lyft/clutch/backend/api/resolver/v1"
 	topologyv1 "github.com/lyft/clutch/backend/api/topology/v1"
 	"github.com/lyft/clutch/backend/mock/service/awsmock"
 	"github.com/lyft/clutch/backend/mock/service/topologymock"
+	"github.com/lyft/clutch/backend/resolver"
 	"github.com/lyft/clutch/backend/service"
 	"github.com/lyft/clutch/backend/service/topology"
 )
@@ -45,7 +46,7 @@ func TestAutoCompleteErrorHandling(t *testing.T) {
 	assert.NotNil(t, aws)
 
 	// Test error handling for topology service not found
-	_, err2 := aws.Autocomplete(context.Background(), "type_url", "search", 0)
+	_, err2 := aws.Autocomplete(context.Background(), "type_url", "search", 0, false)
 	assert.Error(t, err2)
 
 	// Test error handling for a topology search failure
@@ -54,7 +55,7 @@ func TestAutoCompleteErrorHandling(t *testing.T) {
 			autoCompleteError: fmt.Errorf("error"),
 		},
 	}
-	_, err3 := awsResolver.Autocomplete(context.Background(), "type_url", "search", 0)
+	_, err3 := awsResolver.Autocomplete(context.Background(), "type_url", "search", 0, false)
 	assert.Error(t, err3)
 }
 
@@ -87,9 +88,61 @@ func TestAutoCompleteResults(t *testing.T) {
 		},
 	}
 
-	results, err := awsResolver.Autocomplete(context.Background(), "type_url", "search", 0)
+	results, err := awsResolver.Autocomplete(context.Background(), "type_url", "search", 0, false)
 	assert.NoError(t, err)
 	assert.Equal(t, expect, results)
+}
+
+func TestDetermineAccountAndRegionsForOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		id           string
+		accountInput string
+		regionInput  string
+		expect       map[string][]string
+	}{
+		{
+			id:           "all accounts and regions",
+			accountInput: resolver.OptionAll,
+			regionInput:  resolver.OptionAll,
+			expect: map[string][]string{
+				"default":    {"us-mock-1"},
+				"staging":    {"us-mock-1", "us-mock-2"},
+				"production": {"us-mock-1", "us-mock-2", "us-mock-3"},
+			},
+		},
+		{
+			id:           "Only pull from a specific region",
+			accountInput: resolver.OptionAll,
+			regionInput:  "us-mock-2",
+			expect: map[string][]string{
+				"staging":    {"us-mock-2"},
+				"production": {"us-mock-2"},
+			},
+		},
+		{
+			id:           "Only pull from a specific account",
+			accountInput: "staging",
+			regionInput:  resolver.OptionAll,
+			expect: map[string][]string{
+				"staging": {"us-mock-1", "us-mock-2"},
+			},
+		},
+	}
+
+	res := &res{
+		client: awsmock.New(),
+	}
+
+	for _, test := range tests {
+		actual := res.determineAccountAndRegionsForOption(test.accountInput, test.regionInput)
+		for account, region := range test.expect {
+			val, ok := actual[account]
+			assert.True(t, ok)
+			assert.ElementsMatch(t, region, val)
+		}
+	}
 }
 
 type mockTopologySearch struct {
@@ -99,7 +152,7 @@ type mockTopologySearch struct {
 	autoCompleteResults []*topologyv1.Resource
 }
 
-func (m *mockTopologySearch) Autocomplete(ctx context.Context, typeURL, search string, limit uint64) ([]*topologyv1.Resource, error) {
+func (m *mockTopologySearch) Autocomplete(ctx context.Context, typeURL, search string, limit uint64, caseSensitive bool) ([]*topologyv1.Resource, error) {
 	if m.autoCompleteError != nil {
 		return nil, m.autoCompleteError
 	}

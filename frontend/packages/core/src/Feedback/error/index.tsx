@@ -1,35 +1,35 @@
 import React from "react";
-import styled from "@emotion/styled";
-import { IconButton } from "@material-ui/core";
-import MuiOpenInNewIcon from "@material-ui/icons/OpenInNew";
-import RefreshIcon from "@material-ui/icons/Refresh";
+import MuiOpenInNewIcon from "@mui/icons-material/OpenInNew";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import { alpha, IconButton, Theme } from "@mui/material";
 
 import { Link } from "../../link";
 import type { ClutchError } from "../../Network/errors";
 import { isHelpDetails } from "../../Network/errors";
+import styled from "../../styled";
 import { Alert } from "../alert";
 
 import ErrorDetails from "./details";
 
-const ErrorSummaryContainer = styled.div({
+const ErrorSummaryContainer = styled("div")({
   width: "100%",
   display: "flex",
   flexDirection: "column",
 });
 
-const ErrorSummaryMessage = styled.div({
+const ErrorSummaryMessage = styled("div")({
   lineHeight: "24px",
   margin: "4px 0",
   flex: "1",
 });
 
-const ErrorSummaryLink = styled(Link)({
+const ErrorSummaryLink = styled(Link)(({ theme }: { theme: Theme }) => ({
   fontSize: "14px",
   fontWeight: 400,
-  color: "rgb(13,16,48,0.6)",
+  color: alpha(theme.palette.secondary[900], 0.6),
   display: "flex",
   alignItems: "center",
-});
+}));
 
 const ErrorAlert = styled(Alert)(props =>
   props["data-detailed"]
@@ -47,9 +47,10 @@ const OpenInNewIcon = styled(MuiOpenInNewIcon)({
 export interface ErrorProps {
   subject: ClutchError;
   onRetry?: () => void;
+  children?: React.ReactChild | React.ReactChildren;
 }
 
-const Error = ({ subject: error, onRetry }: ErrorProps) => {
+const Error = ({ subject: error, onRetry, children }: ErrorProps) => {
   const action =
     onRetry !== undefined ? (
       <IconButton aria-label="retry" color="inherit" size="small" onClick={() => onRetry()}>
@@ -59,15 +60,16 @@ const Error = ({ subject: error, onRetry }: ErrorProps) => {
 
   if (error?.details === undefined) {
     return (
-      <Alert severity="error" title={error.status.text} action={action}>
+      <Alert severity="error" title={error.status?.text} action={action}>
         {error.message}
+        {children && children}
       </Alert>
     );
   }
 
   let links = [];
   const hasDetails =
-    error.details.filter(detail => {
+    error.details?.filter(detail => {
       if (isHelpDetails(detail)) {
         links = detail?.links || [];
         return false;
@@ -79,7 +81,7 @@ const Error = ({ subject: error, onRetry }: ErrorProps) => {
     <div>
       <ErrorAlert
         severity="error"
-        title={error.status.text}
+        title={error.status?.text}
         data-detailed={hasDetails}
         action={action}
       >

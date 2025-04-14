@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -23,10 +23,23 @@ import (
 	"github.com/lyft/clutch/backend/middleware/timeouts"
 )
 
+type envFiles []string
+
+func (f *envFiles) String() string {
+	return strings.Join(*f, ",")
+}
+
+func (f *envFiles) Set(value string) error {
+	*f = append(*f, value)
+	return nil
+}
+
 type Flags struct {
 	ConfigPath string
 	Template   bool
 	Validate   bool
+	Debug      bool
+	EnvFiles   envFiles
 }
 
 // Link register the struct vars globally for parsing by the flag library.
@@ -34,6 +47,8 @@ func (f *Flags) Link() {
 	flag.StringVar(&f.ConfigPath, "c", "clutch-config.yaml", "path to YAML configuration")
 	flag.BoolVar(&f.Template, "template", false, "executes go templates on the configuration file")
 	flag.BoolVar(&f.Validate, "validate", false, "validates the configuration file and exits")
+	flag.BoolVar(&f.Debug, "debug", false, "print the final composed configuration file to stdout")
+	flag.Var(&f.EnvFiles, "env", "path to additional .env files to load")
 }
 
 // Parse command line arguments.
@@ -49,19 +64,99 @@ func MustReadOrValidateConfig(f *Flags) *gatewayv1.Config {
 	tmpLogger := newTmpLogger().With(zap.String("file", f.ConfigPath))
 
 	var cfg gatewayv1.Config
-	if err := parseFile(f.ConfigPath, &cfg, f.Template); err != nil {
-		tmpLogger.Fatal("parsing configuration failed", zap.Error(err))
-	}
+	var seenCfgs []string
+	consolidateConfigs(filepath.Dir(f.ConfigPath), filepath.Base(f.ConfigPath), &cfg, f, &seenCfgs)
 	if err := cfg.Validate(); err != nil {
-		tmpLogger.Fatal("validating configuration failed", zap.Error(err))
+		tmpLogger.Fatal("configuration proto validation failed", zap.Error(err))
 	}
 
 	if f.Validate {
+		if err := ensureUnique(&cfg); err != nil {
+			tmpLogger.Fatal("configuration validation failed", zap.Error(err))
+		}
+
 		tmpLogger.Info("configuration validation was successful")
 		os.Exit(0)
 	}
 
+	if f.Debug {
+		json, err := protojson.Marshal(&cfg)
+		if err != nil {
+			tmpLogger.Fatal("failed to cast configuration file to json", zap.Error(err))
+		}
+		fmt.Println(string(json))
+		os.Exit(0)
+	}
+
 	return &cfg
+}
+
+// Ensure gateway config has unique modules and service entries
+func ensureUnique(cfg *gatewayv1.Config) error {
+	svcs := make(map[string]bool)
+	for _, s := range cfg.GetServices() {
+		if _, seen := svcs[s.GetName()]; seen {
+			return fmt.Errorf("duplicate service found: %s", s.GetName())
+		}
+		svcs[s.GetName()] = true
+	}
+
+	mods := make(map[string]bool)
+	for _, m := range cfg.GetModules() {
+		if _, seen := mods[m.GetName()]; seen {
+			return fmt.Errorf("duplicate module found: %s", m.GetName())
+		}
+		mods[m.GetName()] = true
+	}
+
+	rlvs := make(map[string]bool)
+	for _, r := range cfg.GetResolvers() {
+		if _, seen := rlvs[r.GetName()]; seen {
+			return fmt.Errorf("duplicate resolver found: %s", r.GetName())
+		}
+		rlvs[r.GetName()] = true
+	}
+	return nil
+}
+
+func contains(s *[]string, str string) bool {
+	for _, v := range *s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
+func consolidateConfigs(cfgBaseDir, cfgFile string, cfg *gatewayv1.Config, f *Flags, seen *[]string) {
+	// Use a temporary logger to parse the configuration and output.
+	cfgPath := filepath.Join(cfgBaseDir, cfgFile)
+	tmpLogger := newTmpLogger().With(zap.String("file", cfgPath))
+
+	if contains(seen, cfgPath) {
+		tmpLogger.Warn("ignoring duplicate extended config")
+		return
+	}
+
+	var curCfg gatewayv1.Config
+	if err := parseFile(cfgPath, &curCfg, f.Template); err != nil {
+		tmpLogger.Fatal("parsing configuration failed", zap.Error(err))
+	}
+
+	*seen = append(*seen, cfgPath)
+	if len(curCfg.Extends) == 0 {
+		proto.Merge(cfg, &curCfg)
+		return
+	}
+
+	for _, c := range curCfg.Extends {
+		if c == cfgPath {
+			continue
+		}
+		consolidateConfigs(filepath.Dir(cfgPath), c, cfg, f, seen)
+	}
+	proto.Merge(cfg, &curCfg)
 }
 
 func executeTemplate(contents []byte) ([]byte, error) {
@@ -93,7 +188,7 @@ func parseFile(path string, pb proto.Message, template bool) error {
 	}
 
 	// Read file.
-	contents, err := ioutil.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -171,6 +266,10 @@ func parseYAML(contents []byte, pb proto.Message) error {
 }
 
 func newLogger(msg *gatewayv1.Logger) (*zap.Logger, error) {
+	return newLoggerWithCore(msg, nil)
+}
+
+func newLoggerWithCore(msg *gatewayv1.Logger, zapCore zapcore.Core) (*zap.Logger, error) {
 	var c zap.Config
 	var opts []zap.Option
 	if msg.GetPretty() {
@@ -192,7 +291,21 @@ func newLogger(msg *gatewayv1.Logger) (*zap.Logger, error) {
 	}
 	c.Level = level
 
-	return c.Build(opts...)
+	logger, err := c.Build(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// If zapCore is set, create a new logger, this is currently only used in tests.
+	if zapCore != nil {
+		logger = zap.New(zapCore, opts...)
+	}
+
+	if len(msg.Namespace) > 0 {
+		logger = logger.With(zap.Namespace(msg.Namespace))
+	}
+
+	return logger, nil
 }
 
 func newTmpLogger() *zap.Logger {

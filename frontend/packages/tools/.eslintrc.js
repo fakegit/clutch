@@ -1,6 +1,12 @@
 module.exports = {
-  parser: "babel-eslint",
+  parser: "@babel/eslint-parser",
   ignorePatterns: ["build/", "dist/", "node_modules/"],
+  parserOptions: {
+    requireConfigFile: false,
+    babelOptions: {
+      presets: ["@babel/preset-react"],
+    },
+  },
   extends: [
     "airbnb",
     "prettier",
@@ -9,8 +15,9 @@ module.exports = {
     "plugin:jest/recommended",
     "plugin:jest/style",
     "plugin:prettier/recommended",
+    "plugin:react-hooks/recommended",
   ],
-  plugins: ["simple-import-sort"],
+  plugins: ["simple-import-sort", "import"],
   env: {
     browser: true,
     es6: true,
@@ -22,6 +29,7 @@ module.exports = {
         extensions: [".js", ".jsx", ".ts", ".tsx"],
         paths: ["**/src", "**/dist"],
       },
+      typescript: {},
     },
     "import/parsers": {
       "@typescript-eslint/parser": [".ts", ".tsx"],
@@ -29,6 +37,14 @@ module.exports = {
   },
   reportUnusedDisableDirectives: true,
   rules: {
+    "react/jsx-no-useless-fragment": ["error", { allowExpressions: true }],
+    "react/function-component-definition": [
+      "error",
+      {
+        namedComponents: ["function-declaration", "arrow-function"],
+        unnamedComponents: ["function-expression"],
+      },
+    ],
     "simple-import-sort/imports": [
       "error",
       {
@@ -118,6 +134,12 @@ module.exports = {
         "@typescript-eslint/no-use-before-define": ["error"],
         "no-shadow": ["off"],
         "@typescript-eslint/no-shadow": ["error"],
+      },
+    },
+    {
+      files: ["**/*.test.*"],
+      rules: {
+        "import/no-extraneous-dependencies": ["off"],
       },
     },
   ],

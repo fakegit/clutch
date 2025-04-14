@@ -8,6 +8,7 @@ import {
   MetadataTable,
   NotePanel,
   Resolver,
+  Typography,
   useWizardContext,
 } from "@clutch-sh/core";
 import { useDataLayout } from "@clutch-sh/data-layout";
@@ -46,6 +47,7 @@ const GroupDetails: React.FC<WizardChild> = () => {
         onUpdate={update}
         data={[
           { name: "Name", value: group.name },
+          { name: "Account", value: group.account },
           { name: "Region", value: group.region },
           { name: "Termination Policy", value: group.terminationPolicies },
           {
@@ -54,7 +56,8 @@ const GroupDetails: React.FC<WizardChild> = () => {
             input: {
               type: "number",
               key: "size.min",
-              validation: number().integer().moreThan(0),
+              validation:
+                group.size.min > 0 ? number().integer().moreThan(0) : number().integer().min(0),
             },
           },
           {
@@ -63,9 +66,12 @@ const GroupDetails: React.FC<WizardChild> = () => {
             input: {
               type: "number",
               key: "size.max",
-              validation: number()
-                .integer()
-                .min(ref("Min Size") as Reference<number>),
+              validation:
+                group.size.min > 0
+                  ? number()
+                      .integer()
+                      .min(ref("Min Size") as Reference<number>)
+                  : number().integer().moreThan(0),
             },
           },
           {
@@ -84,7 +90,7 @@ const GroupDetails: React.FC<WizardChild> = () => {
         ]}
       />
       <ButtonGroup>
-        <Button text="Back" variant="neutral" onClick={onBack} />
+        <Button text="Back" variant="neutral" onClick={() => onBack()} />
         <Button text="Resize" variant="destructive" onClick={onSubmit} />
       </ButtonGroup>
     </WizardStep>
@@ -112,14 +118,23 @@ const Confirm: React.FC<ConfirmChild> = ({ notes }) => {
   );
 };
 
+const ConfirmResizeAutoscalingGroup = () => {
+  const group = useDataLayout("groupData").displayValue() as IClutch.aws.ec2.v1.AutoscalingGroup;
+
+  return (
+    <Typography variant="body1">{`You are about to resize autoscaling group ${group.name}, are you sure to proceed?`}</Typography>
+  );
+};
+
 const ResizeAutoscalingGroup: React.FC<WorkflowProps> = ({ heading, resolverType, notes = [] }) => {
   const dataLayout = {
     groupData: {},
     resizeData: {
       deps: ["groupData"],
-      hydrator: (groupData: { name: string; region: string; size: string }) => {
+      hydrator: (groupData: { name: string; account: string; region: string; size: string }) => {
         return client.post("/v1/aws/ec2/resizeAutoscalingGroup", {
           name: groupData.name,
+          account: groupData.account,
           region: groupData.region,
           size: groupData.size,
         });
@@ -130,8 +145,14 @@ const ResizeAutoscalingGroup: React.FC<WorkflowProps> = ({ heading, resolverType
   return (
     <Wizard dataLayout={dataLayout} heading={heading}>
       <GroupIdentifier name="Lookup" resolverType={resolverType} />
-      <GroupDetails name="Modify" />
-      <Confirm name="Confirmation" notes={notes} />
+      <GroupDetails
+        name="Modify"
+        confirmActionSettings={{
+          title: "Resize Autoscaling Group",
+          description: <ConfirmResizeAutoscalingGroup />,
+        }}
+      />
+      <Confirm name="Result" notes={notes} />
     </Wizard>
   );
 };

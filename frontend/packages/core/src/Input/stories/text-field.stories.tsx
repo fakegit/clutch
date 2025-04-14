@@ -1,13 +1,20 @@
 import * as React from "react";
-import SearchIcon from "@material-ui/icons/Search";
+import SearchIcon from "@mui/icons-material/Search";
 import type { Meta } from "@storybook/react";
 
 import type { TextFieldProps } from "../text-field";
-import TextField from "../text-field";
+import { TextField } from "../text-field";
 
 export default {
   title: "Core/Input/TextField",
   component: TextField,
+  argTypes: {
+    color: {
+      options: ["primary", "secondary", "error", "info", "success", "warning"],
+      control: { type: "select" },
+      defaultValue: "primary",
+    },
+  },
 } as Meta;
 
 const Template = (props: TextFieldProps) => <TextField {...props} />;
@@ -15,6 +22,8 @@ const Template = (props: TextFieldProps) => <TextField {...props} />;
 export const Primary = Template.bind({});
 Primary.args = {
   label: "My Label",
+  color: "primary",
+  error: false,
   placeholder: "This is a placeholder, start typing",
 };
 

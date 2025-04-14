@@ -10,6 +10,7 @@ import {
   MetadataTable,
   NotePanel,
   Resolver,
+  Typography,
   useWizardContext,
 } from "@clutch-sh/core";
 import { useDataLayout } from "@clutch-sh/data-layout";
@@ -39,6 +40,7 @@ const InstanceDetails: React.FC<WizardChild> = () => {
   const data = [
     { name: "Instance ID", value: instance.instanceId },
     { name: "Name", value: instance?.tags?.Name },
+    { name: "Account", value: instance.account },
     { name: "Region", value: instance.region },
     { name: "State", value: instance.state },
     { name: "Instance Type", value: instance.instanceType },
@@ -66,7 +68,7 @@ const InstanceDetails: React.FC<WizardChild> = () => {
         </Accordion>
       )}
       <ButtonGroup>
-        <Button text="Back" variant="neutral" onClick={onBack} />
+        <Button text="Back" variant="neutral" onClick={() => onBack()} />
         <Button text="Terminate" variant="destructive" onClick={onSubmit} />
       </ButtonGroup>
     </WizardStep>
@@ -91,14 +93,24 @@ const Confirm: React.FC<ConfirmChild> = ({ notes }) => {
   );
 };
 
+const ConfirmTerminateInstance = () => {
+  const resourceData = useDataLayout("resourceData");
+  const instance = resourceData.displayValue() as IClutch.aws.ec2.v1.Instance;
+
+  return (
+    <Typography variant="body1">{`You are about to terminate instance ${instance?.tags?.Name}, are you sure to proceed?`}</Typography>
+  );
+};
+
 const TerminateInstance: React.FC<WorkflowProps> = ({ heading, resolverType, notes = [] }) => {
   const dataLayout = {
     resourceData: {},
     terminationData: {
       deps: ["resourceData"],
-      hydrator: (resourceData: { instanceId: string; region: string }) => {
+      hydrator: (resourceData: { instanceId: string; account: string; region: string }) => {
         return client.post("/v1/aws/ec2/terminateInstance", {
           instance_id: resourceData.instanceId,
+          account: resourceData.account,
           region: resourceData.region,
         });
       },
@@ -108,8 +120,14 @@ const TerminateInstance: React.FC<WorkflowProps> = ({ heading, resolverType, not
   return (
     <Wizard dataLayout={dataLayout} heading={heading}>
       <InstanceIdentifier name="Lookup" resolverType={resolverType} />
-      <InstanceDetails name="Verify" />
-      <Confirm name="Confirmation" notes={notes} />
+      <InstanceDetails
+        name="Verify"
+        confirmActionSettings={{
+          title: "Terminate Instance",
+          description: <ConfirmTerminateInstance />,
+        }}
+      />
+      <Confirm name="Result" notes={notes} />
     </Wizard>
   );
 };

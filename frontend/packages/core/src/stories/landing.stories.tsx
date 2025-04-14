@@ -3,20 +3,21 @@ import { BrowserRouter as Router } from "react-router-dom";
 import type { Meta } from "@storybook/react";
 
 import { ApplicationContext } from "../Contexts/app-context";
-import Landing from "../landing";
+import LandingComponent from "../landing";
 
 export default {
   title: "Core/Landing",
   decorators: [
     story => (
+      // eslint-disable-next-line react/jsx-no-constructed-context-values
       <ApplicationContext.Provider value={{ workflows: [] }}>
         <Router>{story()}</Router>
       </ApplicationContext.Provider>
     ),
   ],
-  component: Landing,
+  component: LandingComponent,
 } as Meta;
 
-const Template = () => <Landing />;
+const Template = () => <LandingComponent />;
 
-export const Primary = Template.bind({});
+export const Landing = Template.bind({});

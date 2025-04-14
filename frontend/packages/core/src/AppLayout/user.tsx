@@ -1,6 +1,7 @@
 import React from "react";
 import styled from "@emotion/styled";
 import {
+  alpha,
   Avatar as MuiAvatar,
   ClickAwayListener,
   Divider as MuiDivider,
@@ -12,17 +13,19 @@ import {
   MenuList as MuiMenuList,
   Paper as MuiPaper,
   Popper as MuiPopper,
-} from "@material-ui/core";
+  Theme,
+} from "@mui/material";
 import Cookies from "js-cookie";
 import jwtDecode from "jwt-decode";
+import * as _ from "lodash";
 
-const UserPhoto = styled(IconButton)({
+const UserPhoto = styled(IconButton)(({ theme }: { theme: Theme }) => ({
   padding: "12px",
   "&:hover": {
-    background: "#2d3db4",
+    background: theme.palette.primary[600],
   },
   "&:active": {
-    background: "#2938a5",
+    background: theme.palette.primary[700],
   },
   // avatar on header
   ".MuiAvatar-root": {
@@ -31,39 +34,39 @@ const UserPhoto = styled(IconButton)({
     fontSize: "14px",
     lineHeight: "18px",
   },
-});
+}));
 
 // header and menu avatar
-const Avatar = styled(MuiAvatar)({
-  backgroundColor: "#727FE1",
-  color: "#FFFFFF",
+const Avatar = styled(MuiAvatar)(({ theme }: { theme: Theme }) => ({
+  backgroundColor: theme.palette.primary[500],
+  color: theme.palette.contrastColor,
   fontWeight: 500,
-});
+}));
 
-const Paper = styled(MuiPaper)({
+const Paper = styled(MuiPaper)(({ theme }: { theme: Theme }) => ({
   width: "242px",
-  border: "1px solid #E7E7EA",
-  boxShadow: "0px 5px 15px rgba(53, 72, 212, 0.2)",
-});
+  border: `1px solid ${theme.palette.secondary[100]}`,
+  boxShadow: `0px 5px 15px ${alpha(theme.palette.primary[600], 0.2)}`,
+}));
 
 const Popper = styled(MuiPopper)({
   padding: "0 12px",
-  marginLeft: "12px",
+  offset: "12px",
   zIndex: 1201,
 });
 
-const MenuList = styled(MuiMenuList)({
+const MenuList = styled(MuiMenuList)(({ theme }: { theme: Theme }) => ({
   padding: "0px",
   borderRadius: "4px",
   ".MuiMenuItem-root": {
     "&:hover": {
-      backgroundColor: "#E7E7EA",
+      backgroundColor: theme.palette.secondary[200],
     },
     "&:active": {
-      backgroundColor: "#EBEDFB",
+      backgroundColor: theme.palette.primary[200],
     },
   },
-});
+}));
 
 // user details menu item
 const AvatarMenuItem = styled(MuiMenuItem)({
@@ -84,15 +87,17 @@ const AvatarListItemIcon = styled(ListItemIcon)({
   },
 });
 
-const AvatarListItemText = styled(MuiListItemText)({
+const AvatarListItemText = styled(MuiListItemText)(({ theme }: { theme: Theme }) => ({
   paddingLeft: "16px",
   margin: "0px",
+  wordBreak: "break-all",
+  textWrap: "wrap",
   ".MuiTypography-root": {
-    color: "rgba(13, 16, 48, 0.6)",
+    color: alpha(theme.palette.secondary[900], 0.9),
     fontSize: "14px",
     lineHeight: "24px",
   },
-});
+}));
 
 // default menu items
 const MenuItem = styled(MuiMenuItem)({
@@ -100,18 +105,18 @@ const MenuItem = styled(MuiMenuItem)({
   padding: "12px",
 });
 
-const ListItemText = styled(MuiListItemText)({
+const ListItemText = styled(MuiListItemText)(({ theme }: { theme: Theme }) => ({
   margin: "0px",
   ".MuiTypography-root": {
-    color: "#0D1030",
+    color: theme.palette.secondary[900],
     fontSize: "14px",
     lineHeight: "24px",
   },
-});
+}));
 
-const Divider = styled(MuiDivider)({
-  backgroundColor: "#E7E7EA",
-});
+const Divider = styled(MuiDivider)(({ theme }: { theme: Theme }) => ({
+  backgroundColor: theme.palette.secondary[100],
+}));
 
 const Grow = styled(MuiGrow)((props: { placement: string }) => ({
   transformOrigin: props.placement,
@@ -122,9 +127,16 @@ interface JwtToken {
 }
 
 const userId = (): string => {
+  if (process.env.NODE_ENV === "development") {
+    if (process.env.REACT_APP_USER_ID) {
+      return process.env.REACT_APP_USER_ID;
+    }
+  }
   // Check JWT token for subject and display if available.
   const token = Cookies.get("token");
   if (!token) {
+    // eslint-disable-next-line
+    console.info("No user token set in development - returning Anonymous");
     return "Anonymous";
   }
   let subject = "Unknown user";
@@ -155,7 +167,11 @@ export interface UserInformationProps {
 }
 
 // TODO (sperry): investigate using popover instead of popper
-const UserInformation: React.FC<UserInformationProps> = ({ data, user = userId() }) => {
+const UserInformation: React.FC<UserInformationProps> = ({
+  data,
+  user = userId(),
+  children = [],
+}) => {
   const userInitials = user.slice(0, 2).toUpperCase();
   const [open, setOpen] = React.useState(false);
   const anchorRef = React.useRef(null);
@@ -165,18 +181,20 @@ const UserInformation: React.FC<UserInformationProps> = ({ data, user = userId()
   };
 
   const handleClose = event => {
+    if (event.target.localName === "body") {
+      return;
+    }
     if (anchorRef.current && anchorRef.current.contains(event.target)) {
       return;
     }
     setOpen(false);
   };
-
-  function handleListKeyDown(event) {
+  const handleListKeyDown = event => {
     if (event.key === "Tab") {
       event.preventDefault();
       setOpen(false);
     }
-  }
+  };
 
   return (
     <>
@@ -204,12 +222,24 @@ const UserInformation: React.FC<UserInformationProps> = ({ data, user = userId()
                     </AvatarListItemIcon>
                     <AvatarListItemText>{user}</AvatarListItemText>
                   </AvatarMenuItem>
-                  {data?.length === 0 ? null : <Divider />}
-                  {data?.map(d => (
-                    <MenuItem>
-                      <ListItemText>{d.value}</ListItemText>
-                    </MenuItem>
+                  {data?.map((d, i) => (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <React.Fragment key={i}>
+                      <MenuItem>
+                        <ListItemText>{d.value}</ListItemText>
+                      </MenuItem>
+                      {i > 0 && i < data.length && <Divider />}
+                    </React.Fragment>
                   ))}
+                  {_.castArray(children).length > 0 && <Divider />}
+                  <div style={{ marginBottom: "8px" }}>
+                    {_.castArray(children)?.map((c, i) => (
+                      <>
+                        <MenuItem>{c}</MenuItem>
+                        {i < _.castArray(children).length - 1 && <Divider />}
+                      </>
+                    ))}
+                  </div>
                 </MenuList>
               </ClickAwayListener>
             </Paper>

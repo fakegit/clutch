@@ -4,12 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/joho/godotenv"
+	"github.com/uber-go/tally/v4"
+	tallyprom "github.com/uber-go/tally/v4/prometheus"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	gatewayv1 "github.com/lyft/clutch/backend/api/config/gateway/v1"
 	"github.com/lyft/clutch/backend/gateway/meta"
@@ -38,7 +45,30 @@ type ComponentFactory struct {
 	Modules    module.Factory
 }
 
+func loadEnv(f *Flags) {
+	// Order is important as godotenv will NOT overwrite existing environment variables.
+	envFiles := f.EnvFiles
+
+	for _, filename := range envFiles {
+		// Use a temporary logger to parse the environment files
+		tmpLogger := newTmpLogger().With(zap.String("file", filename))
+
+		p, err := filepath.Abs(filename)
+		if err != nil {
+			tmpLogger.Fatal("parsing .env file failed", zap.Error(err))
+		}
+		// Ignore lint below as it is ok to to ignore dotenv loads as not all env files are guaranteed
+		// to be present.
+		// nolint
+		err = godotenv.Load(p)
+		if err == nil {
+			tmpLogger.Info("successfully loaded environment variables")
+		}
+	}
+}
+
 func Run(f *Flags, cf *ComponentFactory, assets http.FileSystem) {
+	loadEnv(f)
 	cfg := MustReadOrValidateConfig(f)
 	RunWithConfig(f, cfg, cf, assets)
 }
@@ -49,35 +79,17 @@ func RunWithConfig(f *Flags, cfg *gatewayv1.Config, cf *ComponentFactory, assets
 	if err != nil {
 		newTmpLogger().Fatal("could not instantiate logger", zap.Error(err))
 	}
-	defer func() {
-		if err := logger.Sync(); err != nil {
-			panic(err)
-		}
-	}()
+	// See https://github.com/uber-go/zap/issues/880 for more information.
+	// nolint
+	defer logger.Sync()
 
 	logger.Info("using configuration", zap.String("file", f.ConfigPath))
 
 	// Init stats.
-	var reporter tally.StatsReporter
-	switch t := cfg.Gateway.Stats.Reporter.(type) {
-	case nil:
-		reporter = tally.NullStatsReporter
-	case *gatewayv1.Stats_LogReporter_:
-		reporter = stats.NewDebugReporter(logger)
-	case *gatewayv1.Stats_StatsdReporter_:
-		reporter, err = stats.NewStatsdReporter(cfg.Gateway.Stats.GetStatsdReporter())
-		if err != nil {
-			logger.Fatal("error creating statsd reporter", zap.Error(err))
-		}
-	default:
-		logger.Fatal("unsupported logger", zap.Reflect("type", t))
-	}
+	scopeOpts, metricsHandler := getStatsReporterConfiguration(cfg, logger)
 
 	scope, scopeCloser := tally.NewRootScope(
-		tally.ScopeOptions{
-			Reporter: reporter,
-			Prefix:   "clutch",
-		},
+		scopeOpts,
 		cfg.Gateway.Stats.FlushInterval.AsDuration(),
 	)
 	defer func() {
@@ -194,7 +206,7 @@ func RunWithConfig(f *Flags, cfg *gatewayv1.Config, cf *ComponentFactory, assets
 	}
 
 	// Instantiate and register modules listed in the configuration.
-	rpcMux, err := mux.New(interceptors, assets, cfg.Gateway)
+	rpcMux, err := mux.New(interceptors, assets, metricsHandler, cfg.Gateway)
 	if err != nil {
 		panic(err)
 	}
@@ -202,7 +214,13 @@ func RunWithConfig(f *Flags, cfg *gatewayv1.Config, cf *ComponentFactory, assets
 
 	// Create a client connection for the registrar to make grpc-gateway's handlers available.
 	// TODO: stand up a private loopback listener for the grpcServer and connect to that instead.
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", cfg.Gateway.Listener.GetTcp().Address, cfg.Gateway.Listener.GetTcp().Port), grpc.WithInsecure())
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	}
+	if cfg.Gateway.MaxResponseSizeBytes > 0 {
+		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(int(cfg.Gateway.MaxResponseSizeBytes))))
+	}
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", cfg.Gateway.Listener.GetTcp().Address, cfg.Gateway.Listener.GetTcp().Port), opts...)
 	if err != nil {
 		logger.Fatal("failed to bring up gRPC transport for grpc-gateway handlers", zap.Error(err))
 	}
@@ -290,5 +308,83 @@ func RunWithConfig(f *Flags, cfg *gatewayv1.Config, cf *ComponentFactory, assets
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 	}
-	logger.Fatal("error bringing up listener", zap.Error(srv.ListenAndServe()))
+
+	sc := make(chan os.Signal, 1)
+	signal.Notify(
+		sc,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGQUIT,
+		syscall.SIGTERM,
+	)
+
+	go func() {
+		if err = srv.ListenAndServe(); err != http.ErrServerClosed {
+			// Only log an error if it's not due to shutdown or close
+			logger.Fatal("error bringing up listener", zap.Error(err))
+		}
+	}()
+
+	<-sc
+
+	signal.Stop(sc)
+
+	// Shutdown timeout should be max request timeout (with 1s buffer).
+	ctxShutDown, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	if err = srv.Shutdown(ctxShutDown); err != nil {
+		logger.Fatal("server shutdown failed", zap.Error(err))
+	}
+
+	logger.Debug("server shutdown gracefully")
+}
+
+func getStatsReporterConfiguration(cfg *gatewayv1.Config, logger *zap.Logger) (tally.ScopeOptions, http.Handler) {
+	var metricsHandler http.Handler
+	var scopeOpts tally.ScopeOptions
+
+	statsPrefix := "clutch"
+	if cfg.Gateway.Stats.Prefix != "" {
+		statsPrefix = cfg.Gateway.Stats.Prefix
+	}
+
+	switch t := cfg.Gateway.Stats.Reporter.(type) {
+	case nil:
+		scopeOpts = tally.ScopeOptions{
+			Reporter: tally.NullStatsReporter,
+		}
+		return scopeOpts, nil
+	case *gatewayv1.Stats_LogReporter_:
+		scopeOpts = tally.ScopeOptions{
+			Reporter: stats.NewDebugReporter(logger),
+			Prefix:   statsPrefix,
+		}
+		return scopeOpts, nil
+	case *gatewayv1.Stats_StatsdReporter_:
+		reporter, err := stats.NewStatsdReporter(cfg.Gateway.Stats.GetStatsdReporter())
+		if err != nil {
+			logger.Fatal("error creating statsd reporter", zap.Error(err))
+		}
+		scopeOpts = tally.ScopeOptions{
+			Reporter: reporter,
+			Prefix:   statsPrefix,
+		}
+		return scopeOpts, nil
+	case *gatewayv1.Stats_PrometheusReporter_:
+		reporter, err := stats.NewPrometheusReporter(cfg.Gateway.Stats.GetPrometheusReporter())
+		if err != nil {
+			logger.Fatal("error creating prometheus reporter", zap.Error(err))
+		}
+		scopeOpts = tally.ScopeOptions{
+			CachedReporter:  reporter,
+			Prefix:          statsPrefix,
+			SanitizeOptions: &tallyprom.DefaultSanitizerOpts,
+		}
+		metricsHandler = reporter.HTTPHandler()
+		return scopeOpts, metricsHandler
+	default:
+		logger.Fatal("unsupported reporter", zap.Reflect("type", t))
+		return tally.ScopeOptions{}, nil
+	}
 }

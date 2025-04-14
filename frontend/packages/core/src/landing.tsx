@@ -1,28 +1,32 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import styled from "@emotion/styled";
-import { Grid } from "@material-ui/core";
-import Typography from "@material-ui/core/Typography";
+import { alpha, Grid, Theme } from "@mui/material";
+import Typography from "@mui/material/Typography";
 
 import { userId } from "./AppLayout/user";
+import { workflowsByTrending } from "./AppLayout/utils";
 import { MonsterGraphic } from "./Assets/Graphics";
+import { THEME_VARIANTS } from "./Theme/colors";
 import { LandingCard } from "./card";
 import { useAppContext } from "./Contexts";
+import { useNavigate } from "./navigation";
 
-const StyledLanding = styled.div({
-  backgroundColor: "#f9f9fe",
+const StyledLanding = styled.div(({ theme }: { theme: Theme }) => ({
   display: "flex",
   flexDirection: "column",
   flexGrow: 1,
   "& .welcome": {
     display: "flex",
-    backgroundColor: "white",
+    backgroundColor:
+      theme.palette.mode === THEME_VARIANTS.light
+        ? theme.palette.contrastColor
+        : theme.palette.background.paper,
     padding: "32px 80px",
   },
 
   "& .welcome svg": {
     flex: "0 0 auto",
-    marginRight: "24px",
+    margin: "auto 24px auto 0",
   },
 
   "& .welcome .welcomeText": {
@@ -32,39 +36,24 @@ const StyledLanding = styled.div({
   "& .welcome .title": {
     fontWeight: "bold",
     fontSize: "22px",
-    color: "#0d1030",
+    color: theme.palette.text.primary[900],
   },
 
   "& .welcome .subtitle": {
     fontSize: "16px",
     fontWeight: "normal",
-    color: "rgba(13, 16, 48, 0.6)",
+    color: alpha(theme.palette.secondary[900], 0.6),
   },
 
   "& .content": {
     padding: "32px 80px",
   },
-});
+}));
 
 const Landing: React.FC<{}> = () => {
   const navigate = useNavigate();
   const { workflows } = useAppContext();
-  const trendingWorkflows = [];
-  workflows.forEach(workflow => {
-    workflow.routes.forEach(route => {
-      const title = route.displayName
-        ? `${workflow.displayName}: ${route.displayName}`
-        : workflow.displayName;
-      if (route.trending) {
-        trendingWorkflows.push({
-          group: workflow.group,
-          title,
-          description: route.description,
-          path: `${workflow.path}/${route.path}`,
-        });
-      }
-    });
-  });
+  const trendingWorkflows = workflowsByTrending(workflows);
 
   const navigateTo = (path: string) => {
     navigate(path);
@@ -92,10 +81,11 @@ const Landing: React.FC<{}> = () => {
               <Grid key={workflow.path} item xs={12} sm={12} md={6} lg={4} xl={4}>
                 <LandingCard
                   group={workflow.group}
-                  title={workflow.title}
+                  title={workflow.displayName}
                   description={workflow.description}
                   onClick={() => navigateTo(workflow.path)}
                   key={workflow.path}
+                  icon={workflow.icon}
                 />
               </Grid>
             ))}

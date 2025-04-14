@@ -1,0 +1,272 @@
+syntax = "proto3";
+
+package clutch.aws.dynamodb.v1;
+
+option go_package = "github.com/lyft/clutch/backend/api/aws/dynamodb/v1;ddbv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+import "api/v1/annotations.proto";
+
+service DDBAPI {
+  rpc DescribeTable(DescribeTableRequest) returns (DescribeTableResponse) {
+    option (google.api.http) = {
+      post : "/v1/aws/dynamodb/describeTable"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
+  }
+
+  rpc DescribeContinuousBackups(DescribeContinuousBackupsRequest) returns (DescribeContinuousBackupsResponse) {
+    option (google.api.http) = {
+      post : "/v1/aws/dynamodb/describeContinuousBackups"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
+  }
+
+  rpc UpdateCapacity(UpdateCapacityRequest) returns (UpdateCapacityResponse) {
+    option (google.api.http) = {
+      post : "/v1/aws/dynamodb/updateCapacity"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = UPDATE;
+  }
+}
+
+// A Dynamodb table
+message Table {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.aws.dynamodb.v1.Table",
+    pattern : "{account}/{region}/{name}"
+  };
+
+  // Enum representing the status of a table.
+  // https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TableDescription.html
+  enum Status {
+    // Unspecified status indicates the table status could not be found.
+    UNSPECIFIED = 0;
+
+    // AWS returned a status that isn't recognized.
+    UNKNOWN = 1;
+
+    // Table is in the process of being provisioned.
+    CREATING = 2;
+
+    // Table is undergoing an update.
+    UPDATING = 3;
+
+    // Table is in the process of being deleted.
+    DELETING = 4;
+
+    // Table is active and available for actions.
+    ACTIVE = 5;
+
+    // The KMS key used to encrypt the table is inaccessible.
+    // Table operations may fail without the key.
+    INACCESSIBLE_ENCRYPTION_CREDENTIALS = 6;
+
+    // Table is in the process of being moved to archives.
+    ARCHIVING = 7;
+
+    // Table is archived.
+    ARCHIVED = 8;
+  }
+
+  // enum of a table's billing mode
+  enum BillingMode {
+    // Billing mode for table could not be found.
+    BILLING_UNSPECIFIED = 0;
+
+    // Unknown mode type returned from server.
+    BILLING_UNKNOWN = 1;
+
+    // Table and index capacities are provisioned.
+    PROVISIONED = 2;
+
+    // Table and index capacity are on-demand.
+    PAY_PER_REQUEST = 3;
+  }
+
+  // Name of the Dynamodb table.
+  string name = 1;
+
+  // AWS regional location for the table.
+  string region = 2;
+
+  // The global secondary indexes present on a table.
+  // A table may have anywhere from 0-20 GSIs per AWS default quota.
+  repeated GlobalSecondaryIndex global_secondary_indexes = 3;
+
+  // The currently provisioned throughput of a table.
+  // Minimum throughput on a provisioned table is 1 RCU/1 WCU.
+  // Tables with ON-DEMAND capacity will return a provisioned throughput of 0 RCU/0 WCU.
+  Throughput provisioned_throughput = 4;
+
+  // Table status.
+  Status status = 5;
+
+  // Table billing mode.
+  BillingMode billing_mode = 6;
+
+  // The aws acccount
+  string account = 7;
+
+  // Key schema details for the table
+  repeated KeySchema key_schemas = 8;
+
+  // Collection of all the attributes for a table
+  repeated AttributeDefinition attribute_definitions = 9;
+}
+
+// A global secondary index.
+message GlobalSecondaryIndex {
+  // Enum that represents the current GSI state
+  enum Status {
+    // Unspecified indicates GSI status could not be found.
+    UNSPECIFIED = 0;
+
+    // AWS returned a status that isn't recognized.
+    UNKNOWN = 1;
+
+    // GSI is in process of being created.
+    CREATING = 2;
+
+    // GSI is in process of being updated.
+    UPDATING = 3;
+
+    // GSI is in process of being deleted.
+    DELETING = 4;
+
+    // GSI is active and available for actions.
+    ACTIVE = 5;
+  }
+
+  // Name of the global secondary index.
+  string name = 1;
+
+  // Capacity settings on the GSI.
+  Throughput provisioned_throughput = 2;
+
+  // Current GSI status.
+  Status status = 3;
+}
+
+// Represents an Update action on a GSI, which changes the provisioned capacity.
+message IndexUpdateAction {
+  string name = 1;
+  Throughput index_throughput = 2;
+}
+
+// Represents a throughput object that describes a current or pending provisioned capacity.
+message Throughput {
+  int64 write_capacity_units = 1;
+  int64 read_capacity_units = 2;
+}
+
+// Represents the Key structure for the table
+message KeySchema {
+  enum Type {
+    // Undetermined value
+    UNSPECIFIED = 0;
+
+    // AWS returns a type that isn't recognized
+    UNKNOWN = 1;
+
+    // Partition Key
+    HASH = 2;
+
+    // Sort Key
+    RANGE = 3;
+  }
+  string attribute_name = 1;
+  Type type = 2;
+}
+
+// Represents the collection of attributes for the table
+message AttributeDefinition {
+  string attribute_name = 1;
+  string attribute_type = 2;
+}
+
+// Represents the description for a table's continuous backups and point in time recovery
+message ContinuousBackups {
+  enum Status {
+    // Undetermined value
+    UNSPECIFIED = 0;
+
+    // AWS returns a status that isn't recognized
+    UNKNOWN = 1;
+
+    // Setting is enabled
+    ENABLED = 2;
+
+    // Setting is disabled
+    DISABLED = 3;
+  }
+
+  // the status of continuous backups
+  Status continuous_backups_status = 1;
+
+  // the status of point in time recovery
+  Status point_in_time_recovery_status = 2;
+
+  // the earliest time you can restore a table to using PITR
+  google.protobuf.Timestamp earliest_restorable_date_time = 3;
+
+  // the latest time you can restore a table to using PITR
+  google.protobuf.Timestamp latest_restorable_date_time = 4;
+}
+
+// A request for table information.
+message DescribeTableRequest {
+  string table_name = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string region = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string account = 3 [ (validate.rules).string = {min_bytes : 1} ];
+}
+
+// The result of requesting a table.
+message DescribeTableResponse {
+  option (clutch.api.v1.reference).fields = "table";
+
+  Table table = 1;
+}
+
+// A request for a table's continuous backups description.
+message DescribeContinuousBackupsRequest {
+  string table_name = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string region = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string account = 3 [ (validate.rules).string = {min_bytes : 1} ];
+}
+
+// The result of requesting a table's continuous backups description.
+message DescribeContinuousBackupsResponse {
+  ContinuousBackups continuous_backups = 1;
+}
+
+// A request to update a table's capacity.
+// Any combination of table capacity and GSI capacities can be updated in a single request.
+// If no throughputs or GSI updates are specified, the table is unchanged.
+message UpdateCapacityRequest {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.aws.dynamodb.v1.Table",
+    pattern : "{account}/{region}/{table_name}"
+  };
+
+  string table_name = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string region = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  Throughput table_throughput = 3;
+  repeated IndexUpdateAction gsi_updates = 4;
+  bool ignore_maximums = 5;
+  string account = 6 [ (validate.rules).string = {min_bytes : 1} ];
+}
+
+// The result of requesting a capacity update.
+// Successful calls return an updated table description.
+message UpdateCapacityResponse {
+  option (clutch.api.v1.reference).fields = "table";
+
+  Table table = 1;
+}

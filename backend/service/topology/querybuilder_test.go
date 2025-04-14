@@ -94,6 +94,7 @@ func TestPaginatedQueryBuilder(t *testing.T) {
 				Metadata: map[string]string{
 					"label": "value",
 				},
+				CaseSensitive: true,
 			},
 			sort: &topologyv1.SearchRequest_Sort{
 				Field:     "metadata.meow.iam.a.cat",
@@ -101,16 +102,18 @@ func TestPaginatedQueryBuilder(t *testing.T) {
 			},
 			pageToken: "10",
 			limit:     5,
-			expect:    "SELECT id, data, metadata FROM topology_cache WHERE metadata->'search'->>'field' LIKE $1 AND resolver_type_url = $2 AND metadata @> $3::jsonb ORDER BY $4 ASC LIMIT 5 OFFSET 50",
+			expect:    "SELECT id, data, metadata FROM topology_cache WHERE metadata->'search'->>'field' LIKE $1 AND resolver_type_url = $2 AND metadata @> $3::jsonb ORDER BY metadata->'meow'->'iam'->'a'->>'cat' ASC LIMIT 5 OFFSET 50",
 		},
 	}
-	for _, test := range testCases {
-		output, _, err := paginatedQueryBuilder(test.filter, test.sort, test.pageToken, test.limit)
-		assert.NoError(t, err)
+	for _, tt := range testCases {
+		t.Run(tt.id, func(t *testing.T) {
+			output, _, err := paginatedQueryBuilder(tt.filter, tt.sort, tt.pageToken, tt.limit)
+			assert.NoError(t, err)
 
-		sql, _, err := output.ToSql()
-		assert.NoError(t, err)
-		assert.Equal(t, test.expect, sql)
+			sql, _, err := output.ToSql()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expect, sql)
+		})
 	}
 }
 
@@ -134,6 +137,7 @@ func TestFilterQueryBuilder(t *testing.T) {
 					Field: "column.id NOT NULL;--",
 					Text:  "cat",
 				},
+				CaseSensitive: true,
 			},
 			expect:      "",
 			shouldError: true,
@@ -145,6 +149,7 @@ func TestFilterQueryBuilder(t *testing.T) {
 					Field: "column.id",
 					Text:  "cat",
 				},
+				CaseSensitive: true,
 			},
 			expect:      "SELECT * FROM topology_cache WHERE id LIKE $1",
 			shouldError: false,
@@ -156,6 +161,7 @@ func TestFilterQueryBuilder(t *testing.T) {
 					Field: "metadata.label",
 					Text:  "cat",
 				},
+				CaseSensitive: true,
 			},
 			expect:      "SELECT * FROM topology_cache WHERE metadata->>'label' LIKE $1",
 			shouldError: false,
@@ -172,8 +178,50 @@ func TestFilterQueryBuilder(t *testing.T) {
 					"label":  "value",
 					"label2": "value2",
 				},
+				CaseSensitive: true,
 			},
 			expect:      "SELECT * FROM topology_cache WHERE metadata->>'label' LIKE $1 AND resolver_type_url = $2 AND metadata @> $3::jsonb",
+			shouldError: false,
+		},
+		{
+			id: "Search all options",
+			input: &topologyv1.SearchRequest_Filter{
+				Search: &topologyv1.SearchRequest_Filter_Search{
+					Field: "metadata.label",
+					Text:  "cat",
+				},
+				TypeUrl: "type.googleapis.com/clutch.aws.ec2.v1.AutoscalingGroup",
+				Metadata: map[string]string{
+					"label":  "value",
+					"label2": "value2",
+				},
+				CaseSensitive: false,
+			},
+			expect:      "SELECT * FROM topology_cache WHERE metadata->>'label' ILIKE $1 AND resolver_type_url = $2 AND metadata @> $3::jsonb",
+			shouldError: false,
+		},
+		{
+			id: "Search by column",
+			input: &topologyv1.SearchRequest_Filter{
+				Search: &topologyv1.SearchRequest_Filter_Search{
+					Field: "column.id",
+					Text:  "cat",
+				},
+				CaseSensitive: false,
+			},
+			expect:      "SELECT * FROM topology_cache WHERE id ILIKE $1",
+			shouldError: false,
+		},
+		{
+			id: "Search by Metadata",
+			input: &topologyv1.SearchRequest_Filter{
+				Search: &topologyv1.SearchRequest_Filter_Search{
+					Field: "metadata.label",
+					Text:  "cat",
+				},
+				CaseSensitive: false,
+			},
+			expect:      "SELECT * FROM topology_cache WHERE metadata->>'label' ILIKE $1",
 			shouldError: false,
 		},
 	}
@@ -223,7 +271,7 @@ func TestSortQueryBuilder(t *testing.T) {
 				Field:     "column.cat",
 				Direction: topologyv1.SearchRequest_Sort_DESCENDING,
 			},
-			expect:      "SELECT * FROM topology_cache ORDER BY $1 DESC",
+			expect:      "SELECT * FROM topology_cache ORDER BY cat DESC",
 			shouldError: false,
 		},
 		{
@@ -232,7 +280,7 @@ func TestSortQueryBuilder(t *testing.T) {
 				Field:     "metadata.meow",
 				Direction: topologyv1.SearchRequest_Sort_ASCENDING,
 			},
-			expect:      "SELECT * FROM topology_cache ORDER BY $1 ASC",
+			expect:      "SELECT * FROM topology_cache ORDER BY metadata->>'meow' ASC",
 			shouldError: false,
 		},
 		{
@@ -241,7 +289,7 @@ func TestSortQueryBuilder(t *testing.T) {
 				Field:     "metadata.meow.iam.a.cat",
 				Direction: topologyv1.SearchRequest_Sort_ASCENDING,
 			},
-			expect:      "SELECT * FROM topology_cache ORDER BY $1 ASC",
+			expect:      "SELECT * FROM topology_cache ORDER BY metadata->'meow'->'iam'->'a'->>'cat' ASC",
 			shouldError: false,
 		},
 	}

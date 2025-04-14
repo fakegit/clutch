@@ -1,19 +1,19 @@
 const childProcess = require("child_process");
 const fs = require("fs");
 
-const config = require(`${process.argv[2]}/clutch.config.js`); // eslint-disable-line import/no-dynamic-require
-const rootFrontendDir = `${process.argv[2]}/..`;
+const srcDir = process.argv[2];
+const configFile = process.argv[3] || "clutch.config.js";
 
-const WORKFLOW_MODULE_PATH = `${process.argv[2]}/workflows.jsx`;
+const config = require(`${srcDir}/${configFile}`); // eslint-disable-line import/no-dynamic-require
+const rootFrontendDir = `${srcDir}/..`;
+
+const WORKFLOW_MODULE_PATH = `${srcDir}/workflows.jsx`;
 
 const addImport = workflow => {
-  let moduleNameParts = [workflow];
-  if (workflow.includes("/")) {
-    const packageName = workflow.split("/")[1];
-    moduleNameParts = [packageName];
-    if (packageName.includes("-")) {
-      moduleNameParts = packageName.split("-");
-    }
+  const wkflwName = workflow.replace("@", "");
+  let moduleNameParts = [wkflwName];
+  if (wkflwName.includes("/")) {
+    moduleNameParts = wkflwName.split(/[/-]+/);
   }
   const moduleName = moduleNameParts
     .map((part, idx) => {
@@ -27,7 +27,7 @@ const addImport = workflow => {
     WORKFLOW_MODULE_PATH,
     `import { default as ${moduleName}} from "${workflow}";\n`
   );
-  console.log(`Registered ${moduleName} workflow...`); // eslint-disable-line no-console
+  console.log(`Registered ${workflow} workflow...`); // eslint-disable-line no-console
   return moduleName;
 };
 
@@ -42,9 +42,9 @@ const discoverWorkflows = () => {
       WORKFLOW_MODULE_PATH,
       ` * Run the @clutch-sh/tools registerWorkflows target instead\n*/\n`
     );
-    const packagePattern = Object.keys(config).join("|");
-    return childProcess.exec(
-      `yarn list --json --depth=0 --pattern '${packagePattern}'`,
+    const packagePattern = Object.keys(config);
+    childProcess.exec(
+      `yarn workspaces list --json`,
       {
         cwd: rootFrontendDir,
       },
@@ -52,11 +52,19 @@ const discoverWorkflows = () => {
         if (err) {
           throw err;
         }
+
         const modules = {};
-        JSON.parse(stdout).data.trees.forEach(p => {
-          const packageName = `@${p.name.split("@")[1]}`;
-          modules[packageName] = addImport(packageName);
-        });
+
+        (stdout || "")
+          .split("\n")
+          .filter(item => item.length)
+          .map(item => (JSON.parse(item) || {})?.name)
+          .filter(name => packagePattern.includes(name))
+          .forEach(p => {
+            const packageName = `@${p.split("@")[1]}`;
+            modules[packageName] = addImport(packageName);
+          });
+
         return resolve(modules);
       }
     );
@@ -66,12 +74,15 @@ const discoverWorkflows = () => {
 try {
   fs.unlinkSync(WORKFLOW_MODULE_PATH);
 } catch (err) {}
-return discoverWorkflows().then(modules => {
-  fs.appendFileSync(WORKFLOW_MODULE_PATH, `\nconst registeredWorkflows = {\n`);
-  Object.keys(modules).forEach(moduleKey => {
-    const value = modules[moduleKey];
-    fs.appendFileSync(WORKFLOW_MODULE_PATH, `  "${moduleKey}": ${value},\n`);
+
+(() => {
+  return discoverWorkflows().then(modules => {
+    fs.appendFileSync(WORKFLOW_MODULE_PATH, `\nconst registeredWorkflows = {\n`);
+    Object.keys(modules).forEach(moduleKey => {
+      const value = modules[moduleKey];
+      fs.appendFileSync(WORKFLOW_MODULE_PATH, `  "${moduleKey}": ${value},\n`);
+    });
+    fs.appendFileSync(WORKFLOW_MODULE_PATH, `};\nexport default registeredWorkflows;`);
+    console.log("Generated Workflow imports!"); // eslint-disable-line no-console
   });
-  fs.appendFileSync(WORKFLOW_MODULE_PATH, `};\nexport default registeredWorkflows;`);
-  console.log("Generated Workflow imports!"); // eslint-disable-line no-console
-});
+})();

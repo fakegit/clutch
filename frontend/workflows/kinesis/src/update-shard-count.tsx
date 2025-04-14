@@ -17,19 +17,20 @@ import { useDataLayout } from "@clutch-sh/data-layout";
 import type { WizardChild } from "@clutch-sh/wizard";
 import { Wizard, WizardStep } from "@clutch-sh/wizard";
 import styled from "@emotion/styled";
-import { Grid } from "@material-ui/core";
+import { Grid, Theme } from "@mui/material";
+import _ from "lodash";
 
 import type { ResolverChild, WorkflowProps } from "./index";
 
-const Form = styled.form({
+const Form = styled.form(({ theme }: { theme: Theme }) => ({
   alignItems: "center",
   display: "flex",
   flexDirection: "column",
   justifyItems: "space-evenly",
   "> *": {
-    padding: "8px 0",
+    padding: theme.spacing("sm", "none"),
   },
-});
+}));
 
 const StreamIdentifier: React.FC<ResolverChild> = ({ resolverType }) => {
   const { onSubmit } = useWizardContext();
@@ -64,16 +65,16 @@ const StreamDetails: React.FC<WizardChild> = () => {
     Math.ceil(stream.currentShardCount * 1.75),
     Math.ceil(stream.currentShardCount * 2),
   ];
-  const options = values.map(value => {
+  const options = _.uniq(values).map(value => {
     return { label: value.toString() };
   });
   return (
     <WizardStep error={resourceData.error} isLoading={resourceData.isLoading}>
       <Form onSubmit={handleSubmit(onSubmit)}>
-        <TextField readOnly label="StreamName" name="streamName" value={stream.streamName} />
+        <TextField readOnly label="Stream Name" name="streamName" value={stream.streamName} />
         <TextField readOnly label="Region" name="region" value={stream.region} />
         <Grid container alignItems="stretch" wrap="nowrap">
-          <Grid item style={{ flexBasis: "50%", paddingRight: "8px" }}>
+          <Grid item flexBasis="50%" paddingRight={1}>
             <TextField
               readOnly
               label="Current Shard Count"
@@ -82,9 +83,9 @@ const StreamDetails: React.FC<WizardChild> = () => {
               disabled
             />
           </Grid>
-          <Grid item style={{ flexBasis: "50%", paddingLeft: "8px" }}>
+          <Grid item flexBasis="50%" paddingLeft={1}>
             <Select
-              label="TargetShardCount"
+              label="Target Shard Count"
               name="targetShardCount"
               onChange={handleTargetShardCountChange}
               options={options}
@@ -104,7 +105,7 @@ const StreamDetails: React.FC<WizardChild> = () => {
         ]}
       />
       <ButtonGroup>
-        <Button text="Back" onClick={onBack} />
+        <Button text="Back" onClick={() => onBack()} />
         <Button text="Update" variant="destructive" onClick={onSubmit} />
       </ButtonGroup>
     </WizardStep>
@@ -136,11 +137,13 @@ const UpdateShardCount: React.FC<WorkflowProps> = ({ heading, resolverType }) =>
       deps: ["resourceData"],
       hydrator: (resourceData: {
         streamName: string;
+        account: string;
         region: string;
         targetShardCount: number;
       }) => {
         return client.post("/v1/aws/kinesis/updateShardCount", {
           stream_name: resourceData.streamName,
+          account: resourceData.account,
           region: resourceData.region,
           target_shard_count: resourceData.targetShardCount,
         });
@@ -152,7 +155,7 @@ const UpdateShardCount: React.FC<WorkflowProps> = ({ heading, resolverType }) =>
     <Wizard dataLayout={dataLayout} heading={heading}>
       <StreamIdentifier name="Lookup" resolverType={resolverType} />
       <StreamDetails name="Modify" />
-      <Confirm name="Confirmation" />
+      <Confirm name="Result" />
     </Wizard>
   );
 };

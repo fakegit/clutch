@@ -1,0 +1,47 @@
+{
+  "name": "@clutch-sh/dynamodb",
+  "version": "4.0.0-beta",
+  "description": "Manage Dynamodb resources",
+  "license": "Apache-2.0",
+  "author": "clutch@lyft.com",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "yarn run package:clean",
+    "compile": "yarn run package:compile",
+    "compile:dev": "yarn run package:compile:dev",
+    "compile:watch": "yarn run package:compile:watch",
+    "lint": "yarn run package:lint",
+    "lint:fix": "yarn run lint --fix",
+    "publishBeta": "../../../tools/publish-frontend.sh dynamodb",
+    "test": "yarn run package:test",
+    "test:coverage": "yarn run test --collect-coverage",
+    "test:watch": "yarn run test --watch"
+  },
+  "dependencies": {
+    "@clutch-sh/api": "workspace:^",
+    "@clutch-sh/core": "workspace:^",
+    "@clutch-sh/data-layout": "workspace:^",
+    "@clutch-sh/wizard": "workspace:^",
+    "lodash": "^4.17.0",
+    "yup": "^0.32.8"
+  },
+  "devDependencies": {
+    "@clutch-sh/tools": "workspace:^"
+  },
+  "peerDependencies": {
+    "@emotion/styled": "^11.8.1",
+    "@mui/material": "^5.11.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "typescript": "^4.2.3"
+  },
+  "engines": {
+    "node": ">=18 <19",
+    "yarn": "^4.5.0"
+  },
+  "packageManager": "yarn@4.5.0",
+  "stableVersion": "3.0.0-beta"
+}

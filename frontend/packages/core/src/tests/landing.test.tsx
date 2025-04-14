@@ -1,23 +1,23 @@
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
-import { shallow } from "enzyme";
+import { render } from "@testing-library/react";
+
+import "@testing-library/jest-dom";
 
 import * as appContext from "../Contexts/app-context";
 import Landing from "../landing";
+import { ThemeProvider } from "../Theme";
 
-describe("Landing component", () => {
-  let component;
+jest.spyOn(appContext, "useAppContext").mockReturnValue({ workflows: [] });
 
-  beforeAll(() => {
-    appContext.useAppContext = jest.fn().mockReturnValue({ workflows: [] });
-    component = shallow(
-      <MemoryRouter>
+test("renders correctly", () => {
+  const { asFragment } = render(
+    <MemoryRouter>
+      <ThemeProvider>
         <Landing />
-      </MemoryRouter>
-    );
-  });
+      </ThemeProvider>
+    </MemoryRouter>
+  );
 
-  it("renders correctly", () => {
-    expect(component.debug()).toMatchSnapshot();
-  });
+  expect(asFragment()).toMatchSnapshot();
 });

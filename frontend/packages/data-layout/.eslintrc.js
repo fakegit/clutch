@@ -1,4 +1,4 @@
-const baseConfig = require("@clutch-sh/tools/.eslintrc.js");
+const baseConfig = require("@clutch-sh/tools/.eslintrc");
 const path = require("path");
 
 module.exports = {
@@ -11,7 +11,7 @@ module.exports = {
         "import/no-extraneous-dependencies": [
           "error",
           {
-            devDependencies: ["*.config.js"],
+            devDependencies: ["*.config.js", "**/*.test.tsx"],
             packageDir: [__dirname, path.join(__dirname, "../tools")],
           },
         ],

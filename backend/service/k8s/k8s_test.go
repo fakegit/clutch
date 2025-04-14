@@ -2,14 +2,13 @@ package k8s
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,9 +39,9 @@ users:
 `
 
 func TestNew(t *testing.T) {
-	tempfile, _ := ioutil.TempFile("", "")
+	tempfile, _ := os.CreateTemp("", "")
 	defer os.Remove(tempfile.Name())
-	_ = ioutil.WriteFile(tempfile.Name(), []byte(testConfig), 0500)
+	_ = os.WriteFile(tempfile.Name(), []byte(testConfig), 0500)
 
 	paths := []string{tempfile.Name()}
 
@@ -78,7 +77,7 @@ func TestNewWithWrongConfig(t *testing.T) {
 
 func TestApplyRestClientConfig(t *testing.T) {
 	t.Parallel()
-	var testCases = []struct {
+	testCases := []struct {
 		id                 string
 		restConfig         *restclient.Config
 		expectedRestConfig restclient.Config
@@ -107,7 +106,6 @@ func TestApplyRestClientConfig(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.id, func(t *testing.T) {
 			t.Parallel()
 
@@ -131,4 +129,37 @@ func TestInterceptError(t *testing.T) {
 	assert.NotNil(t, s)
 	assert.Equal(t, codes.Unauthenticated, s.Code())
 	assert.Equal(t, "nice try", s.Message())
+}
+
+func TestGetK8sClientset(t *testing.T) {
+	tempfile, _ := os.CreateTemp("", "")
+	defer os.Remove(tempfile.Name())
+	_ = os.WriteFile(tempfile.Name(), []byte(testConfig), 0500)
+
+	paths := []string{tempfile.Name()}
+
+	cfg, _ := anypb.New(&k8sv1.Config{
+		Kubeconfigs: paths,
+	})
+	log := zaptest.NewLogger(t)
+	scope := tally.NewTestScope("", nil)
+
+	s, err := New(cfg, log, scope)
+	assert.NoError(t, err)
+	assert.NotNil(t, s)
+
+	svc, ok := s.(Service)
+	assert.True(t, ok)
+
+	// Get valid clientset
+	cs, err := svc.GetK8sClientset(context.Background(), "test-user@test-cluster")
+	assert.NoError(t, err)
+	assert.NotNil(t, cs)
+	assert.Equal(t, "test-cluster", cs.Cluster())
+
+	// Try to get an unknown clientset
+	cs, err = svc.GetK8sClientset(context.Background(), "unknown")
+	assert.Error(t, err)
+	assert.Nil(t, cs)
+	assert.Contains(t, err.Error(), "clientset 'unknown' not found")
 }

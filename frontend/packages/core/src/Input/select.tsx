@@ -1,33 +1,35 @@
 import * as React from "react";
 import styled from "@emotion/styled";
-import type { SelectProps as MuiSelectProps } from "@material-ui/core";
+import CancelIcon from "@mui/icons-material/Cancel";
+import ErrorIcon from "@mui/icons-material/Error";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import type { SelectProps as MuiSelectProps, Theme } from "@mui/material";
 import {
+  alpha,
   FormControl as MuiFormControl,
   FormHelperText as MuiFormHelperText,
   InputLabel as MuiInputLabel,
+  ListSubheader,
   MenuItem,
   Select as MuiSelect,
-} from "@material-ui/core";
-import ErrorIcon from "@material-ui/icons/Error";
-import ExpandMoreIcon from "@material-ui/icons/ExpandMore";
+  useTheme,
+} from "@mui/material";
+import { flatten } from "lodash";
 
-const StyledFormControl = styled(MuiFormControl)({
-  "label + .MuiInput-formControl": {
-    marginTop: "20px",
-  },
-});
+import { Chip } from "../chip";
 
-const StyledFormHelperText = styled(MuiFormHelperText)({
-  verticalAlign: "middle",
+const StyledFormHelperText = styled(MuiFormHelperText)(({ theme }: { theme: Theme }) => ({
+  alignItems: "center",
   display: "flex",
   position: "relative",
   fontSize: "12px",
   lineHeight: "16px",
   marginTop: "7px",
+  marginLeft: "0px",
   color: "grey",
 
   "&.Mui-error": {
-    color: "#db3615",
+    color: theme.palette.error[600],
   },
 
   svg: {
@@ -35,22 +37,19 @@ const StyledFormHelperText = styled(MuiFormHelperText)({
     width: "16px",
     marginRight: "4px",
   },
-});
+}));
 
-const StyledInputLabel = styled(MuiInputLabel)({
-  marginLeft: "2px",
-  fontWeight: 500,
-  fontSize: "14px",
-  transform: "scale(1)",
-  marginBottom: "10px",
-  color: "rgba(13, 16, 48, 0.6)",
+const StyledInputLabel = styled(MuiInputLabel)(({ theme }: { theme: Theme }) => ({
+  "--label-default-color": alpha(theme.palette.secondary[900], 0.6),
+
+  color: "var(--label-default-color)",
   "&.Mui-focused": {
-    color: "rgba(13, 16, 48, 0.6)",
+    color: "var(--label-default-color)",
   },
   "&.Mui-error": {
-    color: "#db3615",
+    color: theme.palette.error[600],
   },
-});
+}));
 
 const SelectIcon = (props: any) => (
   <div {...props}>
@@ -60,7 +59,6 @@ const SelectIcon = (props: any) => (
 
 const BaseSelect = ({ className, ...props }: MuiSelectProps) => (
   <MuiSelect
-    disableUnderline
     fullWidth
     IconComponent={SelectIcon}
     className={className}
@@ -71,76 +69,82 @@ const BaseSelect = ({ className, ...props }: MuiSelectProps) => (
       },
       anchorOrigin: { vertical: "bottom", horizontal: "left" },
       transformOrigin: { vertical: "top", horizontal: "left" },
-      getContentAnchorEl: null,
     }}
     {...props}
   />
 );
 
-const StyledSelect = styled(BaseSelect)({
+const StyledSelect = styled(BaseSelect)(({ theme }: { theme: Theme }) => ({
+  "--notched-border-width": "1px",
   padding: "0",
-  backgroundColor: "#FFFFFF",
+  backgroundColor: theme.palette.contrastColor,
+  minWidth: "fit-content",
 
-  ".MuiSelect-root": {
-    padding: "15px 60px 13px 16px",
-    borderRadius: "4px",
-    borderStyle: "solid",
-    borderWidth: "1px",
-    borderColor: "rgba(13, 16, 48, 0.38)",
+  ".MuiOutlinedInput-notchedOutline": {
+    borderColor: alpha(theme.palette.secondary[900], 0.38),
+    borderWidth: "var(--notched-border-width)",
+  },
+
+  "&.Mui-focused": {
+    "> .MuiSelect-icon > svg": {
+      color: theme.palette.secondary[900],
+    },
+    "> .MuiOutlinedInput-notchedOutline": {
+      borderColor: theme.palette.primary[600],
+      borderWidth: "var(--notched-border-width)",
+    },
+  },
+  "&.Mui-error > .MuiOutlinedInput-notchedOutline": {
+    borderColor: theme.palette.error[600],
+    borderWidth: "var(--notched-border-width)",
+  },
+
+  ".MuiSelect-select": {
     height: "20px",
     display: "flex",
+    padding: "15px 60px 13px 16px",
+
+    ":focus": {
+      backgroundColor: "inherit",
+    },
+
+    "&.Mui-disabled": {
+      backgroundColor: alpha(theme.palette.secondary[900], 0.12),
+    },
   },
 
   ul: {
     borderRadius: "4px",
-    border: "1px solid rgba(13, 16, 48, 0.1)",
+    border: `1px solid ${alpha(theme.palette.secondary[900], 0.1)}`,
   },
 
-  ".MuiListItem-root": {
-    color: "#0d1030",
+  ".MuiMenuItem-root": {
+    color: theme.palette.secondary[900],
     height: "48px",
-  },
 
-  ".MuiListItem-root:first-of-type": {
-    borderRadius: "4px 4px 0 0",
-  },
-
-  ".MuiListItem-root:last-child": {
-    borderRadius: "0 0 4px 4px",
-  },
-
-  ".MuiListItem-root.Mui-selected": {
-    backgroundColor: "rgba(53, 72, 212, 0.1)",
-  },
-
-  ".MuiListItem-root.Mui-selected:hover": {
-    backgroundColor: "rgba(53, 72, 212, 0.1)",
-  },
-
-  ".MuiListItem-root:hover": {
-    backgroundColor: "#e7e7ea",
-  },
-
-  ".MuiListItem-root:active": {
-    backgroundColor: "#dbdbe0",
+    ":first-of-type": {
+      borderRadius: "4px 4px 0 0",
+    },
+    ":last-child": {},
+    ":hover": {
+      backgroundColor: theme.palette.secondary[200],
+    },
+    ":active": {
+      backgroundColor: theme.palette.secondary[200],
+    },
+    "&.Mui-selected": {
+      backgroundColor: alpha(theme.palette.primary[600], 0.1),
+      ":hover": {
+        backgroundColor: alpha(theme.palette.primary[600], 0.1),
+      },
+    },
   },
 
   "&.MuiMenu-paper": {
     marginTop: "5px",
     border: "none",
-    boxShadow: "0px 5px 15px rgba(53, 72, 212, 0.2)",
-  },
-
-  "&.Mui-focused > .MuiSelect-root": {
-    borderColor: "#3548d4",
-  },
-
-  "&.Mui-error > .MuiSelect-root": {
-    borderColor: "#db3615",
-  },
-
-  ".MuiSelect-root.Mui-disabled": {
-    backgroundColor: "rgba(13, 16, 48, 0.12)",
+    boxShadow: `0px 5px 15px ${alpha(theme.palette.primary[600], 0.2)}`,
+    maxHeight: "25vh",
   },
 
   ".MuiSelect-icon": {
@@ -149,46 +153,107 @@ const StyledSelect = styled(BaseSelect)({
     top: "unset",
     transform: "unset",
     display: "flex",
-    justifyContent: "center",
+    justifyContent: "flex-end",
     alignItems: "center",
     boxSizing: "border-box",
+
+    "> svg": {
+      color: alpha(theme.palette.secondary[900], 0.6),
+      position: "absolute",
+    },
+
+    "&.MuiSelect-iconOpen > svg": {
+      transform: "rotate(180deg)",
+    },
+
+    "&.Mui-disabled > svg": {
+      color: alpha(theme.palette.secondary[900], 0.6),
+    },
   },
 
-  ".MuiSelect-icon.Mui-disabled > svg": {
-    color: "rgba(13, 16, 48, 0.6)",
+  ".MuiListSubheader-root": {
+    color: theme.palette.secondary[400],
+    cursor: "default",
+    pointerEvents: "none", // disables the select from closing on clicking the subheader
   },
+}));
 
-  ".MuiSelect-icon > svg": {
-    color: "rgba(13, 16, 48, 0.6)",
-    position: "absolute",
-  },
-
-  "&.Mui-focused > .MuiSelect-icon > svg": {
-    color: "#0d1030",
-  },
-
-  ".MuiSelect-icon.MuiSelect-iconOpen > svg": {
-    transform: "rotate(180deg)",
-  },
-
-  ".MuiSelect-select:focus": {
-    backgroundColor: "inherit",
-  },
-});
-
-interface SelectOption {
+interface BaseSelectOptions {
   label: string;
   value?: string;
   startAdornment?: React.ReactElement;
 }
 
-export interface SelectProps extends Pick<MuiSelectProps, "disabled" | "error"> {
-  defaultOption?: number;
+export interface SelectOption extends BaseSelectOptions {
+  group?: BaseSelectOptions[];
+}
+
+const flattenBaseSelectOptions = (options: BaseSelectOptions[]) =>
+  flatten(
+    options.map((option: SelectOption) =>
+      option.group ? option.group.map(groupOption => groupOption) : option
+    )
+  );
+
+const menuItemFromOption = (option: BaseSelectOptions) => (
+  <MenuItem key={option.label} value={option?.value || option.label}>
+    {option?.startAdornment &&
+      React.cloneElement(option.startAdornment, {
+        style: {
+          height: "100%",
+          maxHeight: "20px",
+          marginRight: "8px",
+          ...option.startAdornment.props.style,
+        },
+      })}
+    {option.label}
+  </MenuItem>
+);
+
+const renderSelectItems = (option: SelectOption) => {
+  if (option.group) {
+    return [
+      <ListSubheader>{option.label}</ListSubheader>,
+      option.group.map(opt => menuItemFromOption(opt)),
+    ];
+  }
+  return menuItemFromOption(option);
+};
+
+// Will take an array of strings or integers and attempt to find the indexes where they exist based on the flattened items
+const calculateDefaultOptions = (
+  defaultOptions: Array<number> | Array<string>,
+  flattenedOptions: BaseSelectOptions[]
+): Array<number> => {
+  const options = [];
+
+  if (defaultOptions === undefined || defaultOptions.length === 0) {
+    return options;
+  }
+
+  defaultOptions.forEach(option => {
+    if (Number.isInteger(option)) {
+      options.push(option < flattenedOptions.length && option > 0 ? option : 0);
+    }
+
+    // we're a string, lets look it up based on the value/label and default to 0 if none
+    const index = flattenedOptions?.findIndex(
+      opt => opt?.value === option || opt?.label === option
+    );
+    options.push(index >= 0 ? index : 0);
+  });
+  return options;
+};
+
+export interface SelectProps extends Pick<MuiSelectProps, "disabled" | "error" | "value"> {
+  defaultOption?: number | string;
   helperText?: string;
   label?: string;
   name: string;
   options: SelectOption[];
   onChange?: (value: string) => void;
+  variant?: MuiSelectProps["variant"];
+  noDefault?: boolean;
 }
 
 const Select = ({
@@ -200,50 +265,172 @@ const Select = ({
   name,
   options,
   onChange,
+  value,
+  variant = "outlined",
+  noDefault,
 }: SelectProps) => {
-  if (options?.length === undefined || options?.length === 0) {
+  const theme = useTheme();
+  // Flattens all options and sub grouped options for easier retrieval
+  const flatOptions: BaseSelectOptions[] = flattenBaseSelectOptions(options);
+  const defaultOptions = calculateDefaultOptions(
+    [defaultOption] as Array<number> | Array<string>,
+    flatOptions
+  );
+
+  const [selectedIdx, setSelectedIdx] = React.useState(
+    defaultOptions.length > 0 ? defaultOptions[0] : 0
+  );
+
+  React.useEffect(() => {
+    if (flatOptions.length !== 0 && !noDefault) {
+      onChange && onChange(flatOptions[selectedIdx]?.value || flatOptions[selectedIdx].label);
+    }
+  }, []);
+
+  const updateSelectedOption = event => {
+    const targetValue = event.target.value;
+
+    // handle if selecting a header option
+    if (!targetValue) {
+      return;
+    }
+
+    setSelectedIdx(
+      flatOptions.findIndex(opt => opt?.value === targetValue || opt?.label === targetValue)
+    );
+
+    onChange && onChange(targetValue);
+  };
+
+  if (flatOptions.length === 0) {
     return null;
   }
 
-  const defaultIdx = defaultOption < options.length ? defaultOption : 0;
-  const [selectedIdx, setSelectedIdx] = React.useState(defaultIdx);
-
-  const updateSelectedOption = (event: React.ChangeEvent<{ name?: string; value: string }>) => {
-    const { value } = event.target;
-    const optionValues = options.map(o => o?.value || o.label);
-    setSelectedIdx(optionValues.indexOf(value));
-    onChange && onChange(value);
-  };
-
-  React.useEffect(() => {
-    onChange && onChange(options[selectedIdx]?.value || options[selectedIdx].label);
-  }, []);
-
   return (
-    <StyledFormControl key={name} fullWidth disabled={disabled} error={error}>
+    <MuiFormControl id={name} key={name} disabled={disabled} error={error} fullWidth>
       {label && <StyledInputLabel>{label}</StyledInputLabel>}
-      <StyledSelect
-        value={options[selectedIdx]?.value || options[selectedIdx].label}
-        onChange={updateSelectedOption}
-      >
-        {options.map(option => (
-          <MenuItem key={option.label} value={option?.value || option.label}>
-            {option?.startAdornment &&
-              React.cloneElement(option.startAdornment, {
-                style: { height: "100%", marginRight: "8px", ...option.startAdornment.props.style },
-              })}
-            {option.label}
-          </MenuItem>
-        ))}
-      </StyledSelect>
+      {flatOptions.length && (
+        <StyledSelect
+          id={`${name}-select`}
+          value={value ?? (flatOptions[selectedIdx]?.value || flatOptions[selectedIdx].label)}
+          onChange={updateSelectedOption}
+          label={label}
+          variant={variant}
+          theme={theme}
+        >
+          {options?.map(option => renderSelectItems(option))}
+        </StyledSelect>
+      )}
       {helperText && (
         <StyledFormHelperText>
           {error && <ErrorIcon />}
           {helperText}
         </StyledFormHelperText>
       )}
-    </StyledFormControl>
+    </MuiFormControl>
   );
 };
 
-export default Select;
+export interface MultiSelectProps extends Pick<MuiSelectProps, "disabled" | "error"> {
+  defaultOptions?: Array<number> | Array<string>;
+  helperText?: string;
+  label?: string;
+  name: string;
+  selectOptions: SelectOption[];
+  chipDisplay?: boolean;
+  onChange?: (values: Array<string>) => void;
+  variant?: MuiSelectProps["variant"];
+}
+
+const MultiSelect = ({
+  defaultOptions = [],
+  disabled,
+  error,
+  helperText,
+  label,
+  name,
+  selectOptions,
+  chipDisplay = false,
+  onChange,
+  variant = "outlined",
+}: MultiSelectProps) => {
+  const theme = useTheme();
+  // Flattens all options and sub grouped options for easier retrieval
+  const flatOptions: BaseSelectOptions[] = flattenBaseSelectOptions(selectOptions);
+
+  const [selectedOptions, setSelectedOptions] = React.useState<Array<number>>(
+    calculateDefaultOptions(defaultOptions, flatOptions)
+  );
+
+  const selectedValues = () =>
+    selectedOptions.map(idx => flatOptions[idx].value || flatOptions[idx].label);
+
+  React.useEffect(() => {
+    if (flatOptions.length !== 0) {
+      onChange && onChange(selectedValues());
+    }
+  }, [selectedOptions]);
+
+  const updateSelectedOptions = event => {
+    const { value } = event.target;
+    // handle if selecting a header option
+    if (!value) {
+      return;
+    }
+    const findIndex = val => flatOptions.findIndex(opt => opt.value === val || opt.label === val);
+    setSelectedOptions(value.map(val => findIndex(val)));
+  };
+
+  const onDeleteChip = value => () => {
+    const findIndex = val => flatOptions.findIndex(opt => opt.value === val || opt.label === val);
+    const updatedOptions = selectedOptions.filter(option => option !== findIndex(value));
+    setSelectedOptions(updatedOptions);
+  };
+
+  if (flatOptions.length === 0) {
+    return null;
+  }
+
+  return (
+    <MuiFormControl id={name} key={name} disabled={disabled} error={error} fullWidth>
+      {label && <StyledInputLabel>{label}</StyledInputLabel>}
+      {flatOptions.length && (
+        <StyledSelect
+          multiple
+          id={`${name}-multi-select`}
+          value={selectedValues()}
+          onChange={updateSelectedOptions}
+          label={label}
+          variant={variant}
+          theme={theme}
+          {...(chipDisplay && {
+            renderValue: (selected: string[]) => (
+              <div style={{ display: "flex", gap: "4px" }}>
+                {selected.sort().map(value => (
+                  <Chip
+                    variant="neutral"
+                    label={value}
+                    key={value}
+                    size="small"
+                    onDelete={onDeleteChip(value)}
+                    deleteIcon={<CancelIcon onMouseDown={event => event.stopPropagation()} />}
+                  />
+                ))}
+              </div>
+            ),
+          })}
+        >
+          {selectOptions?.map(option => renderSelectItems(option))}
+        </StyledSelect>
+      )}
+      {helperText && (
+        <StyledFormHelperText>
+          {error && <ErrorIcon />}
+          {helperText}
+        </StyledFormHelperText>
+      )}
+    </MuiFormControl>
+  );
+};
+
+export { Select, MultiSelect };

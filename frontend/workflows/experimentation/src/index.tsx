@@ -1,5 +1,6 @@
 import type { WorkflowConfiguration } from "@clutch-sh/core";
 
+import FormFields from "./core/form-fields";
 import PageLayout from "./core/page-layout";
 import ListExperiments from "./list-experiments";
 import ViewExperimentRun from "./view-experiment-run";
@@ -11,8 +12,11 @@ const register = (): WorkflowConfiguration => {
       contactUrl: "mailto:hello@clutch.sh",
     },
     path: "experimentation",
-    group: "Experimentation",
-    displayName: "Experimentation",
+    group: "Chaos Experimentation",
+    displayName: "Chaos Experimentation",
+    defaultLayoutProps: {
+      variant: "standard",
+    },
     routes: {
       listExperiments: {
         path: "list",
@@ -32,5 +36,5 @@ const register = (): WorkflowConfiguration => {
 };
 
 export default register;
-
-export { PageLayout };
+export type { FormItem } from "./core/form-fields";
+export { PageLayout, FormFields };

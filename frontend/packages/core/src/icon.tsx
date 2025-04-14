@@ -1,7 +1,9 @@
 import React from "react";
 import styled from "@emotion/styled";
-import { Grid, GridJustification } from "@material-ui/core";
-import FiberManualRecordTwoToneIcon from "@material-ui/icons/FiberManualRecordTwoTone";
+import FiberManualRecordTwoToneIcon from "@mui/icons-material/FiberManualRecordTwoTone";
+import { Grid, useTheme } from "@mui/material";
+
+import type { GridJustification } from "./grid";
 
 const StyledStatusIcon = styled(FiberManualRecordTwoToneIcon)`
   ${({ ...props }) => `
@@ -26,6 +28,7 @@ export const StatusIcon: React.FC<StatusProps> = ({
   align = "left",
   ...props
 }) => {
+  const theme = useTheme();
   let justifyContent: GridJustification = "flex-start";
   if (align === "right") {
     justifyContent = "flex-end";
@@ -33,20 +36,20 @@ export const StatusIcon: React.FC<StatusProps> = ({
     justifyContent = "center";
   }
   return (
-    <Grid container alignItems="center" justify={justifyContent} {...props}>
+    <Grid container alignItems="center" justifyContent={justifyContent} {...props}>
       {variant === "neutral" && (
         <>
-          <StyledStatusIcon data-color="#C2C8F2" /> {children}
+          <StyledStatusIcon data-color={theme.palette.primary[400]} /> {children}
         </>
       )}
       {variant === "success" && (
         <>
-          <StyledStatusIcon data-color="#69F0AE" /> {children}
+          <StyledStatusIcon data-color={theme.palette.success[300]} /> {children}
         </>
       )}
       {variant === "failure" && (
         <>
-          <StyledStatusIcon data-color="#FF8A80" /> {children}
+          <StyledStatusIcon data-color={theme.palette.error[300]} /> {children}
         </>
       )}
     </Grid>

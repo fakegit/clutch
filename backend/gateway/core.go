@@ -15,14 +15,20 @@ import (
 	awsmod "github.com/lyft/clutch/backend/module/aws"
 	slackbotmod "github.com/lyft/clutch/backend/module/bot/slackbot"
 	experimentationapi "github.com/lyft/clutch/backend/module/chaos/experimentation/api"
+	xdsmod "github.com/lyft/clutch/backend/module/chaos/experimentation/xds"
 	"github.com/lyft/clutch/backend/module/chaos/redisexperimentation"
 	"github.com/lyft/clutch/backend/module/chaos/serverexperimentation"
-	xdsmod "github.com/lyft/clutch/backend/module/chaos/serverexperimentation/xds"
+	dynamodbmod "github.com/lyft/clutch/backend/module/dynamodb"
 	"github.com/lyft/clutch/backend/module/envoytriage"
+	"github.com/lyft/clutch/backend/module/featureflag"
+	feedbackmod "github.com/lyft/clutch/backend/module/feedback"
 	"github.com/lyft/clutch/backend/module/healthcheck"
 	k8smod "github.com/lyft/clutch/backend/module/k8s"
 	kinesismod "github.com/lyft/clutch/backend/module/kinesis"
+	projectmod "github.com/lyft/clutch/backend/module/project"
+	proxymod "github.com/lyft/clutch/backend/module/proxy"
 	resolvermod "github.com/lyft/clutch/backend/module/resolver"
+	shortlinkmod "github.com/lyft/clutch/backend/module/shortlink"
 	"github.com/lyft/clutch/backend/module/sourcecontrol"
 	topologymod "github.com/lyft/clutch/backend/module/topology"
 	"github.com/lyft/clutch/backend/resolver"
@@ -41,8 +47,13 @@ import (
 	"github.com/lyft/clutch/backend/service/chaos/experimentation/terminator"
 	pgservice "github.com/lyft/clutch/backend/service/db/postgres"
 	"github.com/lyft/clutch/backend/service/envoyadmin"
+	feedbackservice "github.com/lyft/clutch/backend/service/feedback"
 	"github.com/lyft/clutch/backend/service/github"
 	k8sservice "github.com/lyft/clutch/backend/service/k8s"
+	"github.com/lyft/clutch/backend/service/project"
+	shortlinkservice "github.com/lyft/clutch/backend/service/shortlink"
+	sourcegraphservice "github.com/lyft/clutch/backend/service/sourcegraph"
+	"github.com/lyft/clutch/backend/service/temporal"
 	topologyservice "github.com/lyft/clutch/backend/service/topology"
 )
 
@@ -60,18 +71,24 @@ var Modules = module.Factory{
 	authnmod.Name:              authnmod.New,
 	authzmod.Name:              authzmod.New,
 	awsmod.Name:                awsmod.New,
+	dynamodbmod.Name:           dynamodbmod.New,
 	envoytriage.Name:           envoytriage.New,
 	experimentationapi.Name:    experimentationapi.New,
+	featureflag.Name:           featureflag.New,
+	feedbackmod.Name:           feedbackmod.New,
+	healthcheck.Name:           healthcheck.New,
 	k8smod.Name:                k8smod.New,
 	kinesismod.Name:            kinesismod.New,
-	healthcheck.Name:           healthcheck.New,
-	resolvermod.Name:           resolvermod.New,
-	xdsmod.Name:                xdsmod.New,
-	serverexperimentation.Name: serverexperimentation.New,
+	projectmod.Name:            projectmod.New,
+	proxymod.Name:              proxymod.New,
 	redisexperimentation.Name:  redisexperimentation.New,
+	resolvermod.Name:           resolvermod.New,
+	serverexperimentation.Name: serverexperimentation.New,
+	shortlinkmod.Name:          shortlinkmod.New,
 	slackbotmod.Name:           slackbotmod.New,
 	sourcecontrol.Name:         sourcecontrol.New,
 	topologymod.Name:           topologymod.New,
+	xdsmod.Name:                xdsmod.New,
 }
 
 var Services = service.Factory{
@@ -83,19 +100,24 @@ var Services = service.Factory{
 	bot.Name:                 bot.New,
 	envoyadmin.Name:          envoyadmin.New,
 	experimentstore.Name:     experimentstore.New,
-	terminator.Name:          terminator.New,
+	feedbackservice.Name:     feedbackservice.New,
 	github.Name:              github.New,
 	k8sservice.Name:          k8sservice.New,
 	loggingsink.Name:         loggingsink.New,
 	pgservice.Name:           pgservice.New,
+	project.Name:             project.New,
+	shortlinkservice.Name:    shortlinkservice.New,
 	slack.Name:               slack.New,
+	sourcegraphservice.Name:  sourcegraphservice.New,
+	temporal.Name:            temporal.New,
+	terminator.Name:          terminator.New,
 	topologyservice.Name:     topologyservice.New,
 }
 
 var Resolvers = resolver.Factory{
 	awsresolver.Name:  awsresolver.New,
-	k8sresolver.Name:  k8sresolver.New,
 	coreresolver.Name: coreresolver.New,
+	k8sresolver.Name:  k8sresolver.New,
 }
 
 var CoreComponentFactory = &ComponentFactory{

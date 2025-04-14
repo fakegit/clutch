@@ -2,13 +2,13 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8s "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 
 	k8sv1 "github.com/lyft/clutch/backend/api/k8s/v1"
@@ -42,16 +42,48 @@ func testListJobClientset() *fake.Clientset {
 	return fake.NewSimpleClientset(testJobs...)
 }
 
-func testJobClientset() k8s.Interface {
-	job := &v1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testing-job-name",
-			Namespace: "testing-namespace",
-			Labels:    map[string]string{"foo": "bar"},
-		},
+func testJobService(n int) *svc {
+	jobs := make([]runtime.Object, n)
+	for i := 0; i < n; i++ {
+		job := &v1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("testing-job-name-%b", i),
+				Namespace: "testing-namespace",
+				Labels:    map[string]string{"foo": "bar"},
+			},
+		}
+		jobs[i] = job
 	}
 
-	return fake.NewSimpleClientset(job)
+	return &svc{
+		manager: &managerImpl{
+			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": {
+				Interface: fake.NewSimpleClientset(jobs...),
+				namespace: "testing-namespace",
+				cluster:   "testing-cluster",
+			}},
+		},
+	}
+}
+
+func TestDescribeJob(t *testing.T) {
+	// 1 existing job
+	s := testJobService(1)
+	job, err := s.DescribeJob(context.Background(), "testing-clientset", "testing-cluster", "testing-namespace", "testing-job-name")
+	assert.NoError(t, err)
+	assert.NotNil(t, job)
+
+	// No existing job
+	s = testJobService(0)
+	job, err = s.DescribeJob(context.Background(), "testing-clientset", "testing-cluster", "testing-namespace", "testing-job-name")
+	assert.Error(t, err)
+	assert.Nil(t, job)
+
+	// 2 existing jobs
+	s = testJobService(2)
+	job, err = s.DescribeJob(context.Background(), "testing-clientset", "testing-cluster", "testing-namespace", "testing-job-name")
+	assert.Error(t, err)
+	assert.Nil(t, job)
 }
 
 func TestListJobs(t *testing.T) {
@@ -61,7 +93,7 @@ func TestListJobs(t *testing.T) {
 
 	s := &svc{
 		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": &ctxClientsetImpl{
+			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": {
 				Interface: cs,
 				namespace: "testing-namespace",
 				cluster:   "testing-cluster",
@@ -106,38 +138,18 @@ func TestListJobs(t *testing.T) {
 func TestDeleteJob(t *testing.T) {
 	t.Parallel()
 
-	cs := testJobClientset()
-
-	s := &svc{
-		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": &ctxClientsetImpl{
-				Interface: cs,
-				namespace: "testing-namespace",
-				cluster:   "testing-cluster",
-			}},
-		},
-	}
+	s := testJobService(1)
 
 	// Not found
 	err := s.DeleteJob(context.Background(), "testing-clientset", "testing-cluster", "testing-namespace", "abc")
 	assert.Error(t, err)
 
-	err = s.DeleteJob(context.Background(), "testing-clientset", "testing-cluster", "testing-namespace", "testing-job-name")
+	err = s.DeleteJob(context.Background(), "testing-clientset", "testing-cluster", "testing-namespace", "testing-job-name-0")
 	assert.NoError(t, err)
 }
 
 func TestCreateJob(t *testing.T) {
-	cs := testJobClientset()
-
-	s := &svc{
-		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": &ctxClientsetImpl{
-				Interface: cs,
-				namespace: "testing-namespace",
-				cluster:   "testing-cluster",
-			}},
-		},
-	}
+	s := testJobService(1)
 
 	jobConfig := &v1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -160,7 +172,7 @@ func TestCreateJob(t *testing.T) {
 func TestProtoForJob(t *testing.T) {
 	t.Parallel()
 
-	var jobTestCases = []struct {
+	jobTestCases := []struct {
 		id                  string
 		inputClusterName    string
 		expectedClusterName string
@@ -172,7 +184,9 @@ func TestProtoForJob(t *testing.T) {
 			expectedClusterName: "production",
 			job: &v1.Job{
 				ObjectMeta: metav1.ObjectMeta{
-					ClusterName: "production",
+					Labels: map[string]string{
+						clutchLabelClusterName: "production",
+					},
 				},
 			},
 		},
@@ -182,14 +196,15 @@ func TestProtoForJob(t *testing.T) {
 			expectedClusterName: "staging",
 			job: &v1.Job{
 				ObjectMeta: metav1.ObjectMeta{
-					ClusterName: "",
+					Labels: map[string]string{
+						clutchLabelClusterName: "staging",
+					},
 				},
 			},
 		},
 	}
 
 	for _, tt := range jobTestCases {
-		tt := tt
 		t.Run(tt.id, func(t *testing.T) {
 			t.Parallel()
 

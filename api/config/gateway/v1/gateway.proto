@@ -8,6 +8,7 @@ import "google/protobuf/any.proto";
 import "google/protobuf/duration.proto";
 import "validate/validate.proto";
 import "config/middleware/accesslog/v1/accesslog.proto";
+import "google/protobuf/wrappers.proto";
 
 message Config {
   GatewayOptions gateway = 1 [ (validate.rules).message = {required : true} ];
@@ -15,6 +16,9 @@ message Config {
   repeated Service services = 2;
   repeated Resolver resolvers = 3;
   repeated Module modules = 4;
+
+  // External clutch config files to extend and compose into a consolidated config
+  repeated string extends = 5;
 }
 
 message TCPSocket {
@@ -50,11 +54,15 @@ message Stats {
     }
   }
 
+  message PrometheusReporter {
+    string handler_path = 1;
+  }
+
   // The reporter to emit stats. If none specified, then stats will not be reported.
   oneof reporter {
     LogReporter log_reporter = 2;
     StatsdReporter statsd_reporter = 3;
-    //  TODO: Prometheus support.
+    PrometheusReporter prometheus_reporter = 5;
   }
 
   message GoRuntimeStats {
@@ -64,6 +72,9 @@ message Stats {
 
   // Collect go runtime stats, this is disabled by default.
   GoRuntimeStats go_runtime_stats = 4;
+
+  // the prefix for the stats. If none specified, the default is "clutch"
+  string prefix = 6;
 }
 
 message Timeouts {
@@ -100,6 +111,12 @@ message GatewayOptions {
   bool enable_pprof = 8;
 
   clutch.config.middleware.accesslog.v1.Config accesslog = 9;
+
+  // Maximum allowed size of a gRPC response (before transcoding to JSON). Defaults to 4MB (i.e. 4194304 bytes).
+  uint32 max_response_size_bytes = 10;
+
+  // Whether or not cookies should be sent with the 'Secure' flag. Default value is true.
+  google.protobuf.BoolValue secure_cookies = 11;
 }
 
 // Assets configuration provide a passthrough host for frontend static assets.
@@ -116,6 +133,11 @@ message Assets {
   oneof provider {
     S3Provider s3 = 1;
   }
+
+  // Clutch hosts static assets on the `/static/` path, any request to this path will result in a lookup of static
+  // assets. However if you would like to utilize this route for other pruposes in additon to static assets, you can
+  // enable this feature. eg: clutch.sh/static || /static/* -> you can now handle this route as you wish.
+  bool routable_static_path = 2;
 }
 
 message Logger {
@@ -133,6 +155,10 @@ message Logger {
   oneof format {
     bool pretty = 2;
   }
+
+  // Namespace will set a zap.Namespace for your logging fields to be nested in.
+  // https://pkg.go.dev/go.uber.org/zap?utm_source=godoc#Namespace
+  string namespace = 3;
 }
 
 message Middleware {

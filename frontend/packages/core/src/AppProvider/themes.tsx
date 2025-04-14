@@ -1,105 +1,44 @@
 import React from "react";
-import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
-import { createMuiTheme, CssBaseline, MuiThemeProvider, ThemeOptions } from "@material-ui/core";
-import { useTheme as useMuiTheme } from "@material-ui/core/styles";
-import type { PaletteOptions } from "@material-ui/core/styles/createPalette";
-import { StylesProvider } from "@material-ui/styles";
+import { useTheme as useMuiTheme } from "@mui/material";
+import type { Theme as MuiTheme } from "@mui/material/styles";
 
-interface ClutchPalette extends PaletteOptions {
-  accent: {
-    main: string;
-  };
-  destructive: {
-    main: string;
-  };
+import { ThemeProvider } from "../Theme";
+import { THEME_VARIANTS } from "../Theme/colors";
+import type { ClutchColors } from "../Theme/types";
+
+declare module "@mui/material/styles" {
+  interface Theme {
+    colors: ClutchColors;
+  }
+  interface ThemeOptions {
+    colors?: ClutchColors;
+  }
+  interface Palette {
+    contrastColor: string;
+    headerGradient: string;
+    brandColor: string;
+  }
 }
 
-interface ClutchTheme extends ThemeOptions {
-  palette: ClutchPalette;
-}
-
-const WHITE = "#ffffff";
-const GRAY = "#D7DADB";
-const TEAL = "#02acbe";
-const RED = "#EF474D";
-const NAVY = "#2D3F50";
-
-const lightPalette = (): ClutchPalette => {
-  return {
-    accent: {
-      main: TEAL,
-    },
-    destructive: {
-      main: RED,
-    },
-    primary: {
-      main: WHITE,
-    },
-    secondary: {
-      main: NAVY,
-    },
-    background: {
-      default: WHITE,
-      paper: WHITE,
-    },
-    text: {
-      primary: NAVY,
-      secondary: GRAY,
-    },
-  };
-};
-
-const lightTheme = () => {
-  return createMuiTheme({
-    palette: lightPalette(),
-    transitions: {
-      // https://material-ui.com/getting-started/faq/#how-can-i-disable-transitions-globally
-      create: () => "none",
-    },
-    props: {
-      MuiButtonBase: {
-        // https://material-ui.com/getting-started/faq/#how-can-i-disable-the-ripple-effect-globally
-        disableRipple: true,
-      },
-    },
-    overrides: {
-      MuiAccordion: {
-        root: {
-          "&$expanded": {
-            // remove the additional margin rule when expanded so the original margin is used.
-            margin: null,
-          },
-        },
-      },
-      MuiTypography: {
-        colorPrimary: {
-          color: NAVY,
-        },
-        colorSecondary: {
-          color: GRAY,
-        },
-      },
-    },
-  });
-};
-
-const useTheme = () => {
-  return useMuiTheme() as ClutchTheme;
-};
+const useTheme = () => useMuiTheme() as MuiTheme;
 
 interface ThemeProps {
-  variant?: "light";
+  useWorkflowLayout?: boolean;
 }
 
-const Theme: React.FC<ThemeProps> = ({ children }) => {
-  const theme = lightTheme;
+const Theme: React.FC<ThemeProps> = ({ useWorkflowLayout = false, children }) => {
+  // Uncomment to use dark mode
+  /* // Detect system color mode
+  const prefersDarkMode =
+    window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches; */
+  const prefersDarkMode = false;
   return (
-    <MuiThemeProvider theme={theme()}>
-      <EmotionThemeProvider theme={theme()}>
-        <CssBaseline />
-        <StylesProvider injectFirst>{children}</StylesProvider>
-      </EmotionThemeProvider>
-    </MuiThemeProvider>
+    <ThemeProvider
+      variant={prefersDarkMode ? THEME_VARIANTS.dark : THEME_VARIANTS.light}
+      useWorkflowLayout={useWorkflowLayout}
+    >
+      {children}
+    </ThemeProvider>
   );
 };
 

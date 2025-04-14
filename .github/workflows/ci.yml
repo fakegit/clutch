@@ -12,16 +12,16 @@ jobs:
   renovate-config:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Node
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
-          node-version: '14.x'
+          node-version: '18.x'
           check-latest: true
       - name: Enforce consistent Yarn version
         run: ./tools/install-yarn.sh
       - name: Install renovate-config-validator
-        run: yarn add renovate
+        run: yarn add renovate@^34.0.0
         working-directory: build
       - name: Validate renovate.json
         run: yarn renovate-config-validator ../.github/renovate.json

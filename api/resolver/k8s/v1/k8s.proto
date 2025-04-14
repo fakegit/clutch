@@ -4,8 +4,6 @@ package clutch.resolver.k8s.v1;
 
 option go_package = "github.com/lyft/clutch/backend/api/resolver/k8s/v1;k8sv1";
 
-import "google/protobuf/descriptor.proto";
-
 import "resolver/v1/annotations.proto";
 
 message PodID {
@@ -270,6 +268,35 @@ message Namespace {
   } ];
 
   string clientset = 2 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Clientset",
+    required : true,
+    option_field : {include_dynamic_options : "clientset"},
+  } ];
+}
+
+message Node {
+  option (clutch.resolver.v1.schema) = {
+    display_name : "Node Name"
+    search : {enabled : true}
+  };
+
+  string name = 1 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Name",
+    required : true,
+    string_field : {
+      placeholder : "node-name",
+    },
+  } ];
+
+  string cluster = 2 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Cluster",
+    required : true,
+    string_field : {
+      placeholder : "cluster-name",
+    },
+  } ];
+
+  string clientset = 3 [ (clutch.resolver.v1.schema_field) = {
     display_name : "Clientset",
     required : true,
     option_field : {include_dynamic_options : "clientset"},

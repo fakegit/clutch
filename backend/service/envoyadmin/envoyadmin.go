@@ -7,11 +7,11 @@ package envoyadmin
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
@@ -65,7 +65,7 @@ func makeRequest(ctx context.Context, cl *http.Client, baseURL, path string) ([]
 		return nil, fmt.Errorf("received non-200 status '%d %s'", resp.StatusCode, resp.Status)
 	}
 
-	return ioutil.ReadAll(resp.Body)
+	return io.ReadAll(resp.Body)
 }
 
 func (c *client) Get(ctx context.Context, operation *envoytriagev1.ReadOperation) (*envoytriagev1.Result, error) {

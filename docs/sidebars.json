@@ -29,8 +29,22 @@
         "development/guide",
         "development/custom-gateway",
         "development/feature",
+        "development/feature-flags",
         "development/api",
-        "development/frontend",
+        {
+          "type": "category",
+          "label": "Frontend",
+          "items": [
+            "development/frontend/overview",
+            "development/frontend/storybook",
+            "development/frontend/bugsnag",
+            {
+              "type": "link",
+              "label": "Clutch's Storybook",
+              "href": "https://storybook.clutch.sh"
+            }
+          ]
+        },
         "development/backend"
       ]
     },
@@ -39,7 +53,10 @@
       "label": "Advanced Features",
       "items": [
         "advanced/auth",
-        "advanced/security-auditing"
+        "advanced/chaos-experimentation",
+        "advanced/security-auditing",
+        "advanced/topology",
+        "advanced/workflow-feedback-framework"
       ]
     },
     "configuration",

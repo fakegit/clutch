@@ -4,8 +4,6 @@ package clutch.resolver.aws.v1;
 
 option go_package = "github.com/lyft/clutch/backend/api/resolver/aws/v1;awsv1";
 
-import "google/protobuf/descriptor.proto";
-
 import "resolver/v1/annotations.proto";
 
 message InstanceID {
@@ -21,9 +19,15 @@ message InstanceID {
       placeholder : "i-1234567890",
     },
   } ];
+
   string region = 2 [ (clutch.resolver.v1.schema_field) = {
     display_name : "Region",
     option_field : {include_all_option : true, include_dynamic_options : "regions"},
+  } ];
+
+  string account = 3 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Account",
+    option_field : {include_all_option : true, include_dynamic_options : "accounts"},
   } ];
 }
 
@@ -45,6 +49,11 @@ message AutoscalingGroupName {
     display_name : "Region",
     option_field : {include_all_option : true, include_dynamic_options : "regions"},
   } ];
+
+  string account = 3 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Account",
+    option_field : {include_all_option : true, include_dynamic_options : "accounts"},
+  } ];
 }
 
 message KinesisStreamName {
@@ -64,5 +73,110 @@ message KinesisStreamName {
   string region = 2 [ (clutch.resolver.v1.schema_field) = {
     display_name : "Region",
     option_field : {include_all_option : true, include_dynamic_options : "regions"},
+  } ];
+
+  string account = 3 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Account",
+    option_field : {include_all_option : true, include_dynamic_options : "accounts"},
+  } ];
+}
+
+message DynamodbTableName {
+  option (clutch.resolver.v1.schema) = {
+    display_name : "name"
+    search : {enabled : true}
+  };
+
+  string name = 1 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Name",
+    required : true,
+    string_field : {
+      placeholder : "my-dynamodb-table-name",
+    },
+  } ];
+
+  string region = 2 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Region",
+    option_field : {include_all_option : true, include_dynamic_options : "regions"},
+  } ];
+
+  string account = 3 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Account",
+    option_field : {include_all_option : true, include_dynamic_options : "accounts"},
+  } ];
+}
+
+message S3BucketName {
+  option (clutch.resolver.v1.schema) = {
+    display_name : "name"
+    search : {enabled : true}
+  };
+
+  string name = 1 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Name",
+    required : true,
+    string_field : {
+      placeholder : "my-s3-bucket-name",
+    },
+  } ];
+
+  string region = 2 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Region",
+    option_field : {include_all_option : true, include_dynamic_options : "regions"},
+  } ];
+
+  string account = 3 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Account",
+    option_field : {include_all_option : true, include_dynamic_options : "accounts"},
+  } ];
+}
+
+message S3AccessPointName {
+  option (clutch.resolver.v1.schema) = {
+    display_name : "name"
+    search : {enabled : true}
+  };
+
+  string name = 1 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Name",
+    required : true,
+    string_field : {
+      placeholder : "my-s3-access-point-name",
+    },
+  } ];
+
+  string region = 2 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Region",
+    option_field : {include_all_option : true, include_dynamic_options : "regions"},
+  } ];
+
+  string account = 3 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Account",
+    option_field : {include_all_option : true, include_dynamic_options : "accounts"},
+  } ];
+}
+
+message IAMRoleName {
+  option (clutch.resolver.v1.schema) = {
+    display_name : "name"
+    search : {enabled : true}
+  };
+
+  string name = 1 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Name",
+    required : true,
+    string_field : {
+      placeholder : "my-iam-role-name",
+    },
+  } ];
+
+  string region = 2 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Region",
+    option_field : {include_all_option : true, include_dynamic_options : "regions"},
+  } ];
+
+  string account = 3 [ (clutch.resolver.v1.schema_field) = {
+    display_name : "Account",
+    option_field : {include_all_option : true, include_dynamic_options : "accounts"},
   } ];
 }

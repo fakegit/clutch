@@ -11,6 +11,7 @@ export default {
   decorators: [
     story => (
       <WizardContext.Provider
+        // eslint-disable-next-line react/jsx-no-constructed-context-values
         value={() => {
           return {
             onSubmit: () => {},
@@ -18,6 +19,8 @@ export default {
             setIsLoading: () => {},
             displayWarnings: () => {},
             onBack: () => {},
+            setHasError: () => {},
+            setIsComplete: () => {},
           };
         }}
       >
@@ -60,6 +63,7 @@ WithMutableRows.args = {
         type: "number",
         key: "size.min",
       },
+      disabledFieldTooltip: "A tooltip for this field",
     },
     {
       name: "Max Size",

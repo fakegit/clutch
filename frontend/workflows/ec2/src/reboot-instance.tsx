@@ -36,6 +36,7 @@ const InstanceDetails: React.FC<WizardChild> = () => {
 
   const data = [
     { name: "Instance ID", value: instance.instanceId },
+    { name: "Account", value: instance.account },
     { name: "Region", value: instance.region },
     { name: "State", value: instance.state },
     { name: "Instance Type", value: instance.instanceType },
@@ -54,7 +55,7 @@ const InstanceDetails: React.FC<WizardChild> = () => {
     <WizardStep error={resourceData.error} isLoading={resourceData.isLoading}>
       <MetadataTable data={data} />
       <ButtonGroup>
-        <Button text="Back" variant="neutral" onClick={onBack} />
+        <Button text="Back" variant="neutral" onClick={() => onBack()} />
         <Button text="Reboot" variant="destructive" onClick={onSubmit} />
       </ButtonGroup>
     </WizardStep>
@@ -77,9 +78,10 @@ const RebootInstance: React.FC<WorkflowProps> = ({ heading, resolverType, notes 
     resourceData: {},
     rebootData: {
       deps: ["resourceData"],
-      hydrator: (resourceData: { instanceId: string; region: string }) => {
+      hydrator: (resourceData: { instanceId: string; account: string; region: string }) => {
         return client.post("/v1/aws/ec2/rebootInstance", {
           instance_id: resourceData.instanceId,
+          account: resourceData.account,
           region: resourceData.region,
         });
       },
@@ -90,7 +92,7 @@ const RebootInstance: React.FC<WorkflowProps> = ({ heading, resolverType, notes 
     <Wizard dataLayout={dataLayout} heading={heading}>
       <InstanceIdentifier name="Lookup" resolverType={resolverType} />
       <InstanceDetails name="Verify" />
-      <Confirm name="Confirmation" notes={notes} />
+      <Confirm name="Result" notes={notes} />
     </Wizard>
   );
 };

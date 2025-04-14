@@ -1,28 +1,55 @@
 import React from "react";
-import { useSearchParams } from "react-router-dom";
-import { Button, ButtonGroup, Step, Stepper, Warning, WizardContext } from "@clutch-sh/core";
+import type { WizardNavigationProps } from "@clutch-sh/core";
+import {
+  Button,
+  ButtonGroup,
+  FeatureOn,
+  Grid,
+  NPSWizard,
+  Paper,
+  SimpleFeatureFlag,
+  Step,
+  Stepper,
+  styled,
+  Toast,
+  Typography,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+  useTheme,
+  WizardContext,
+} from "@clutch-sh/core";
 import type { ManagerLayout } from "@clutch-sh/data-layout";
 import { DataLayoutContext, useDataLayoutManager } from "@clutch-sh/data-layout";
-import styled from "@emotion/styled";
-import { Container as MuiContainer, Grid, Paper as MuiPaper, Typography } from "@material-ui/core";
+import type {
+  ContainerProps as MuiContainerProps,
+  StepperProps as MuiStepperProps,
+} from "@mui/material";
+import { alpha, Container as MuiContainer, Theme } from "@mui/material";
 
-import { useWizardState, WizardAction } from "./state";
+import ConfirmAction, { ConfirmActionProps } from "./confirm-action";
+import { useWizardState, WizardActionType } from "./state";
 import type { WizardStepProps } from "./step";
 
-const Heading = styled(Typography)({
-  paddingBottom: "16px",
-  fontWeight: 700,
-  fontSize: "26px",
-});
-
-interface WizardProps extends Pick<ContainerProps, "width"> {
-  heading?: string;
+export interface WizardProps
+  extends Pick<ContainerProps, "width" | "className">,
+    Pick<MuiStepperProps, "orientation" | "nonLinear"> {
+  children:
+    | React.ReactNode
+    | React.ReactElement<WizardStepProps>
+    | React.ReactElement<WizardStepProps>[];
   dataLayout: ManagerLayout;
-  children: React.ReactElement<WizardStepProps> | React.ReactElement<WizardStepProps>[];
+  heading?: string | React.ReactElement;
 }
 
 export interface WizardChild {
   name: string;
+  showNPS?: boolean;
+  confirm?: {
+    startOver: boolean;
+    startOverText?: string;
+  };
+  confirmActionSettings?: ConfirmActionProps;
 }
 
 interface WizardChildren extends JSX.Element {
@@ -33,31 +60,79 @@ interface WizardStepData {
   [index: string]: any;
 }
 
-interface ContainerProps {
+interface ContainerProps extends Pick<MuiContainerProps, "className"> {
   width?: "default" | "full";
 }
 
-const Container = styled(MuiContainer)<ContainerProps>(
+const Header = styled(Grid)<{ $orientation: MuiStepperProps["orientation"] }>(
   {
-    padding: "32px",
-    maxWidth: "unset",
+    paddingBottom: "16px",
   },
   props => ({
-    width: props.width === "full" ? "100%" : "800px",
+    marginLeft: props.$orientation === "vertical" ? "-16px" : "0",
   })
 );
 
-const Paper = styled(MuiPaper)({
-  boxShadow: "0px 5px 15px rgba(53, 72, 212, 0.2)",
-  padding: "32px",
+const Container = styled(MuiContainer)<{ $width: ContainerProps["width"] }>(
+  ({ theme }: { theme: Theme }) => ({
+    padding: theme.clutch.useWorkflowLayout
+      ? theme.spacing("none", "md")
+      : theme.clutch.layout.gutter,
+    height: "100%",
+  }),
+  props => ({
+    width: props.$width === "full" ? "100%" : "800px",
+  })
+);
+
+const StepperContainer = styled(Grid)<{ $orientation: MuiStepperProps["orientation"] }>(
+  {},
+  props => ({ theme }: { theme: Theme }) => ({
+    ...(props.$orientation === "vertical" && {
+      padding: "16px",
+      scrollbarGutter: "stable",
+      height: "fit-content",
+      maxHeight: "100%",
+      overflowY: "scroll",
+      background: alpha(theme.palette.secondary[200], 0.35),
+    }),
+  })
+);
+
+const MaxHeightGrid = styled(Grid)({
+  height: "100%",
 });
 
-const Wizard = ({ heading, width = "default", dataLayout, children }: WizardProps) => {
+const StyledStepContainer = styled(Grid)({
+  marginTop: "-16px",
+});
+
+const StyledPaper = styled(Paper)(({ theme }: { theme: Theme }) => ({
+  boxShadow: `0px 5px 15px ${alpha(theme.palette.primary[600], 0.2)}`,
+  padding: "32px",
+  maxHeight: "100%",
+  overflowY: "scroll",
+}));
+
+const Wizard = ({
+  heading,
+  width = "default",
+  dataLayout,
+  orientation = "horizontal",
+  children,
+  className,
+  nonLinear = false,
+}: WizardProps) => {
   const [state, dispatch] = useWizardState();
   const [wizardStepData, setWizardStepData] = React.useState<WizardStepData>({});
   const [globalWarnings, setGlobalWarnings] = React.useState<string[]>([]);
+  const [confirmDialogOpen, setConfirmDialogOpen] = React.useState(false);
   const dataLayoutManager = useDataLayoutManager(dataLayout);
   const [, setSearchParams] = useSearchParams();
+  const locationState = useLocation().state as { origin?: string };
+  const navigate = useNavigate();
+  const [origin] = React.useState(locationState?.origin);
+  const theme = useTheme();
 
   const updateStepData = (stepName: string, data: object) => {
     setWizardStepData(prevState => {
@@ -71,12 +146,33 @@ const Wizard = ({ heading, width = "default", dataLayout, children }: WizardProp
   };
 
   const handleNext = () => {
-    dispatch(WizardAction.NEXT);
+    dispatch({ type: WizardActionType.NEXT });
+  };
+
+  const handleStepClick = (step: number) => {
+    dispatch({ type: WizardActionType.GO_TO_STEP, step });
+  };
+
+  const handleNavigation = (params: WizardNavigationProps, actionType: WizardActionType) => {
+    setGlobalWarnings([]);
+    if (!params?.keepSearch) {
+      setSearchParams({});
+    }
+    if (params?.toOrigin && origin) {
+      navigate(origin);
+    } else {
+      dispatch({ type: actionType });
+    }
   };
 
   const context = (child: JSX.Element) => {
+    const confirmActionSettings = child.props?.confirmActionSettings;
+
     return {
-      onSubmit: wizardStepData?.[child.type.name]?.onSubmit || handleNext,
+      onSubmit:
+        confirmActionSettings && !confirmDialogOpen
+          ? () => setConfirmDialogOpen(true)
+          : wizardStepData?.[child.type.name]?.onSubmit || handleNext,
       setOnSubmit: (f: (...args: any[]) => void) => {
         updateStepData(child.type.name, { onSubmit: f(handleNext) });
       },
@@ -86,13 +182,21 @@ const Wizard = ({ heading, width = "default", dataLayout, children }: WizardProp
       setHasError: (hasError: boolean) => {
         updateStepData(child.type.name, { hasError });
       },
+      setIsComplete: (isComplete: boolean) => {
+        updateStepData(child.type.name, { isComplete });
+      },
       displayWarnings: (warnings: string[]) => {
         setGlobalWarnings(warnings);
       },
-      onBack: () => {
-        setGlobalWarnings([]);
-        setSearchParams({});
-        dispatch(WizardAction.BACK);
+      onBack: (params: WizardNavigationProps) => {
+        handleNavigation(params, WizardActionType.BACK);
+      },
+      onNext: (params: WizardNavigationProps) => {
+        handleNavigation(params, WizardActionType.NEXT);
+      },
+      confirmActionOpen: confirmDialogOpen,
+      setConfirmActionOpen: (open: boolean) => {
+        setConfirmDialogOpen(open);
       },
     };
   };
@@ -106,27 +210,55 @@ const Wizard = ({ heading, width = "default", dataLayout, children }: WizardProp
   const steps = filteredChildren.map((child: WizardChildren) => {
     const isLoading = wizardStepData[child.type.name]?.isLoading || false;
     const hasError = wizardStepData[child.type.name]?.hasError;
+    const {
+      props: {
+        showNPS = true,
+        confirm = {
+          startOver: true,
+          startOverText: "Start Over",
+        },
+      },
+    } = child;
+
     return (
       <>
         <DataLayoutContext.Provider value={dataLayoutManager}>
+          {/* eslint-disable-next-line react/jsx-no-constructed-context-values */}
           <WizardContext.Provider value={() => context(child)}>
-            <Grid container direction="column" justify="center" alignItems="center">
+            <Grid container direction="column" justifyContent="center" alignItems="center">
               {child}
+              {child.props?.confirmActionSettings && (
+                <ConfirmAction {...(child.props.confirmActionSettings as ConfirmActionProps)} />
+              )}
             </Grid>
           </WizardContext.Provider>
         </DataLayoutContext.Provider>
-        <Grid container justify="center">
-          {((state.activeStep === lastStepIndex && !isLoading && isMultistep) || hasError) && (
-            <ButtonGroup>
-              <Button
-                text="Start Over"
-                onClick={() => {
-                  dataLayoutManager.reset();
-                  setSearchParams({});
-                  dispatch(WizardAction.RESET);
-                }}
-              />
-            </ButtonGroup>
+        <Grid container justifyContent="center">
+          {((state.activeStep === lastStepIndex && !isLoading) || hasError) && (
+            <>
+              {showNPS && (
+                <SimpleFeatureFlag feature="npsWizard">
+                  <FeatureOn>
+                    <NPSWizard />
+                  </FeatureOn>
+                </SimpleFeatureFlag>
+              )}
+              {(isMultistep || hasError) && confirm.startOver && (
+                <ButtonGroup>
+                  <Button
+                    text={confirm.startOverText ?? "Start Over"}
+                    onClick={() => {
+                      dataLayoutManager.reset();
+                      setSearchParams({});
+                      dispatch({ type: WizardActionType.RESET });
+                      if (origin) {
+                        navigate(origin);
+                      }
+                    }}
+                  />
+                </ButtonGroup>
+              )}
+            </>
           )}
         </Grid>
       </>
@@ -138,28 +270,49 @@ const Wizard = ({ heading, width = "default", dataLayout, children }: WizardProp
   };
 
   return (
-    <Container width={width}>
-      <Grid
-        container
-        direction="column"
-        justify="center"
-        alignItems="stretch"
-        style={{ display: "inline" }}
-      >
-        {heading && <Heading>{heading}</Heading>}
-        <Grid item>
-          <Stepper activeStep={state.activeStep}>
-            {filteredChildren.map((child: WizardChildren) => {
-              const { name } = child.props;
-              const hasError = wizardStepData[child.type.name]?.hasError;
-              return <Step key={name} label={name} error={hasError} />;
-            })}
-          </Stepper>
-          <Paper elevation={0}>{steps[state.activeStep]}</Paper>
-        </Grid>
-      </Grid>
+    <Container $width={width} maxWidth={false} className={className}>
+      <MaxHeightGrid container alignItems="stretch">
+        {!theme.clutch.useWorkflowLayout && heading && (
+          <Header item $orientation={orientation}>
+            {React.isValidElement(heading) ? (
+              heading
+            ) : (
+              <Typography variant="h2">{heading}</Typography>
+            )}
+          </Header>
+        )}
+        <MaxHeightGrid
+          container
+          item
+          direction={orientation === "vertical" ? "row" : "column"}
+          wrap="nowrap"
+          spacing={2}
+          marginTop={0}
+        >
+          <StepperContainer item xs="auto" $orientation={orientation}>
+            <Stepper
+              activeStep={state.activeStep}
+              orientation={orientation}
+              nonLinear={nonLinear}
+              handleStepClick={handleStepClick}
+            >
+              {filteredChildren.map((child: WizardChildren) => {
+                const { name } = child.props;
+                const hasError = wizardStepData[child.type.name]?.hasError;
+                const isComplete = wizardStepData[child.type.name]?.isComplete;
+                return <Step key={name} label={name} error={hasError} isComplete={isComplete} />;
+              })}
+            </Stepper>
+          </StepperContainer>
+          <StyledStepContainer item xs={12}>
+            <StyledPaper elevation={0}>{steps[state.activeStep]}</StyledPaper>
+          </StyledStepContainer>
+        </MaxHeightGrid>
+      </MaxHeightGrid>
       {globalWarnings.map(error => (
-        <Warning key={error} message={error} onClose={() => removeWarning(error)} />
+        <Toast key={error} onClose={() => removeWarning(error)}>
+          {error}
+        </Toast>
       ))}
     </Container>
   );

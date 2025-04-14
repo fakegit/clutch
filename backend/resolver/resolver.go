@@ -6,7 +6,7 @@ import (
 	"reflect"
 
 	protodeprecated "github.com/golang/protobuf/proto"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -50,7 +50,7 @@ type Resolver interface {
 	Resolve(ctx context.Context, typeURL string, input protodeprecated.Message, limit uint32) (*Results, error)
 	// ValidateResolveInput(typeURL string, input proto.Message) for async validation from frontend
 
-	Autocomplete(ctx context.Context, typeURL, search string, limit uint64) ([]*resolverv1.AutocompleteResult, error)
+	Autocomplete(ctx context.Context, typeURL, search string, limit uint64, caseSensitive bool) ([]*resolverv1.AutocompleteResult, error)
 }
 
 const TypePrefix = "type.googleapis.com/"

@@ -13,15 +13,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ${{ env.PACKAGEPATH }}
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
-          go-version: 1.16.0
-      - uses: actions/setup-node@v2
+          go-version: 1.24.x
+      - uses: actions/setup-node@v3
         with:
-          node-version: '14.x'
+          node-version: '18.x'
           check-latest: true
       - name: scaffold new app
         run: yes | go run scaffolder.go -m gateway -p ${{ github.sha }} -o ${{ github.repository_owner }}

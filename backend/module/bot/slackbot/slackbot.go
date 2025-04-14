@@ -11,7 +11,7 @@ import (
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -134,7 +134,7 @@ func (m *mod) handleEvent(ctx context.Context, req *slackbotv1.EventRequest) {
 // for the inner event, we currently support 2 types: app_mention (messages that mention the bot directly) and message (specifically DMs with the bot)
 // full list of Slack event types: https://api.slack.com/events
 func (m *mod) handleCallBackEvent(ctx context.Context, event *slackbotv1.Event) error {
-	switch event.Type {
+	switch slackevents.EventsAPIType(event.Type) {
 	case slackevents.AppMention:
 		return m.handleAppMentionEvent(ctx, event)
 	case slackevents.Message:

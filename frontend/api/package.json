@@ -1,15 +1,22 @@
 {
   "name": "@clutch-sh/api",
-  "version": "1.0.0-beta",
+  "version": "4.0.0-beta",
   "description": "Clutch API",
   "license": "Apache-2.0",
   "author": "clutch@lyft.com",
   "main": "src/index.js",
   "types": "src/index.d.ts",
   "scripts": {
+    "clean": "yarn run package:clean",
     "publishBeta": "../../tools/publish-frontend.sh api"
   },
   "dependencies": {
-    "protobufjs": "6.10.2"
-  }
+    "protobufjs": "6.11.3"
+  },
+  "engines": {
+    "node": ">=18 <19",
+    "yarn": "^4.5.0"
+  },
+  "packageManager": "yarn@4.5.0",
+  "stableVersion": "3.0.0-beta"
 }

@@ -12,10 +12,11 @@ import (
 	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -25,12 +26,21 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	regions := []string{"us-east-1", "us-west25"}
+	regions := []string{"us-east-1", "us-west-2"}
 
 	cfg, _ := anypb.New(&awsv1.Config{
-		Regions: regions,
+		Regions:                        regions,
+		PrimaryAccountAliasDisplayName: "default",
 		ClientConfig: &awsv1.ClientConfig{
 			Retries: 10,
+		},
+		DynamodbConfig: &awsv1.DynamodbConfig{
+			ScalingLimits: &awsv1.ScalingLimits{
+				MaxReadCapacityUnits:  1000,
+				MaxWriteCapacityUnits: 2000,
+				MaxScaleFactor:        4.0,
+				EnableOverride:        false,
+			},
 		},
 	})
 	log := zaptest.NewLogger(t)
@@ -49,9 +59,10 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, c.log)
 	assert.NotNil(t, c.scope)
 
-	assert.Len(t, c.clients, len(regions))
+	assert.Len(t, c.accounts["default"].clients, len(regions))
 	addedRegions := make([]string, 0, len(regions))
-	for key, rc := range c.clients {
+
+	for key, rc := range c.accounts[c.currentAccountAlias].clients {
 		addedRegions = append(addedRegions, key)
 		assert.Equal(t, key, rc.region)
 	}
@@ -64,38 +75,161 @@ func TestNewWithWrongConfigType(t *testing.T) {
 	assert.Contains(t, err.Error(), "mismatched message type")
 }
 
+func TestConfigureAdditionalAccountClient(t *testing.T) {
+	cfg, _ := anypb.New(&awsv1.Config{
+		Regions:                        []string{"us-east-1"},
+		PrimaryAccountAliasDisplayName: "default",
+		AdditionalAccounts: []*awsv1.AWSAccount{
+			{
+				Alias:         "dev",
+				AccountNumber: "123",
+				IamRole:       "iam-dev",
+				Regions:       []string{"us-west-1"},
+			},
+			{
+				Alias:         "staging",
+				AccountNumber: "456",
+				IamRole:       "iam-staging",
+				Regions:       []string{"us-west-2"},
+			},
+		},
+	})
+	log := zaptest.NewLogger(t)
+	scope := tally.NewTestScope("", nil)
+	s, err := New(cfg, log, scope)
+	assert.NoError(t, err)
+
+	c, ok := s.(*client)
+	assert.True(t, ok)
+
+	expctedAccounts := []string{"default", "dev", "staging"}
+	for _, expect := range expctedAccounts {
+		val, ok := c.accounts[expect]
+		assert.True(t, ok)
+		assert.NotNil(t, val)
+	}
+}
+
+func TestGetAccountRegionClient(t *testing.T) {
+	c := &client{
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1":  nil,
+					"us-west-2":  nil,
+					"us-north-5": nil,
+				},
+			},
+		},
+	}
+
+	_, err := c.getAccountRegionClient("default", "us-east-1")
+	assert.NoError(t, err)
+
+	_, err = c.getAccountRegionClient("aws://", "us-west-3")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+
+	_, err = c.getAccountRegionClient("default", "us-west-3")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no client found")
+}
+
 func TestRegions(t *testing.T) {
-	c := client{}
-	c.clients = map[string]*regionalClient{"us-east-1": nil, "us-west-2": nil, "us-north-5": nil}
-	assert.ElementsMatch(t, c.Regions(), []string{"us-east-1", "us-west-2", "us-north-5"})
+	c := &client{
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1":  nil,
+					"us-west-2":  nil,
+					"us-north-5": nil,
+				},
+			},
+		},
+	}
+
+	regions := c.Regions()
+	assert.ElementsMatch(t, regions, []string{"us-east-1", "us-west-2", "us-north-5"})
+}
+
+func TestGetAccountsInRegion(t *testing.T) {
+	c := &client{
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				alias:   "default",
+				regions: []string{"us-east-1", "us-west-2", "us-north-5"},
+			},
+			"staging": {
+				alias:   "staging",
+				regions: []string{"us-east-1"},
+			},
+			"prod": {
+				alias:   "prod",
+				regions: []string{"us-east-2"},
+			},
+			"testing": {
+				alias:   "testing",
+				regions: []string{"us-west-2"},
+			},
+		},
+	}
+
+	assert.ElementsMatch(t, []string{"default", "staging"}, c.GetAccountsInRegion("us-east-1"))
+	assert.ElementsMatch(t, []string{"prod"}, c.GetAccountsInRegion("us-east-2"))
+	assert.ElementsMatch(t, []string{"default", "testing"}, c.GetAccountsInRegion("us-west-2"))
+	assert.ElementsMatch(t, []string{"default"}, c.GetAccountsInRegion("us-north-5"))
+}
+
+func TestDuplicateRegions(t *testing.T) {
+	c := &client{
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1":  nil,
+					"us-west-2":  nil,
+					"us-north-5": nil,
+				},
+			},
+			"staging": {
+				clients: map[string]*regionalClient{
+					"us-east-1":  nil,
+					"us-west-2":  nil,
+					"us-north-1": nil,
+					"us-north-5": nil,
+				},
+			},
+		},
+	}
+
+	regions := c.Regions()
+	assert.ElementsMatch(t, regions, []string{"us-east-1", "us-west-2", "us-north-1", "us-north-5"})
 }
 
 func TestMissingRegionOnEachServiceCall(t *testing.T) {
 	c := &client{
-		clients: map[string]*regionalClient{"us-east-1": nil},
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1": nil,
+				},
+			},
+		},
 	}
 
-	_, err := c.DescribeInstances(context.Background(), "us-north-5", nil)
+	_, err := c.DescribeInstances(context.Background(), "default", "us-north-5", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no client found")
 
-	err = c.TerminateInstances(context.Background(), "us-north-5", nil)
+	err = c.TerminateInstances(context.Background(), "default", "us-north-5", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no client found")
 
-	err = c.RebootInstances(context.Background(), "us-north-5", nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no client found")
-}
-
-func TestGetRegionalClient(t *testing.T) {
-	c := &client{
-		clients: map[string]*regionalClient{"us-east-1": nil},
-	}
-	_, err := c.getRegionalClient("us-east-1")
-	assert.NoError(t, err)
-
-	_, err = c.getRegionalClient("us-north-5")
+	err = c.RebootInstances(context.Background(), "default", "us-north-5", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no client found")
 }
@@ -116,6 +250,7 @@ var testInstance = ec2types.Instance{
 
 var testInstanceProto = ec2v1.Instance{
 	InstanceId:       "i-123456789abcdef0",
+	Account:          "default",
 	Region:           "us-east-1",
 	State:            ec2v1.Instance_RUNNING,
 	InstanceType:     "c5.xlarge",
@@ -160,9 +295,10 @@ var testAutoscalingGroup = astypes.AutoScalingGroup{
 }
 
 var testAutoscalingGroupProto = ec2v1.AutoscalingGroup{
-	Name:   "asgname",
-	Zones:  []string{"us-east-1a", "us-east-1b"},
-	Region: "us-east-1",
+	Name:    "asgname",
+	Zones:   []string{"us-east-1a", "us-east-1b"},
+	Account: "default",
+	Region:  "us-east-1",
 	Size: &ec2v1.AutoscalingGroupSize{
 		Min:     uint32(1),
 		Max:     uint32(10),
@@ -177,7 +313,7 @@ var testAutoscalingGroupProto = ec2v1.AutoscalingGroup{
 }
 
 func TestNewProtoForInstance(t *testing.T) {
-	pb := newProtoForInstance(testInstance)
+	pb := newProtoForInstance(testInstance, "default")
 	assert.Equal(t, &testInstanceProto, pb)
 }
 
@@ -187,7 +323,7 @@ func TestNewProtoForAutoscalingGroupInstance(t *testing.T) {
 }
 
 func TestNewProtoForAutoscalingGroup(t *testing.T) {
-	pb := newProtoForAutoscalingGroup(testAutoscalingGroup)
+	pb := newProtoForAutoscalingGroup("default", testAutoscalingGroup)
 	assert.Equal(t, &testAutoscalingGroupProto, pb)
 }
 
@@ -216,50 +352,71 @@ func TestProtoForAutoscalingGroupInstanceLifecycleState(t *testing.T) {
 func TestDescribeInstances(t *testing.T) {
 	m := &mockEC2{}
 	c := &client{
-		clients: map[string]*regionalClient{"us-east-1": {region: "us-east-1", ec2: m}},
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1": {region: "us-east-1", ec2: m},
+				},
+			},
+		},
 	}
 
-	results, err := c.DescribeInstances(context.Background(), "us-east-1", nil)
+	results, err := c.DescribeInstances(context.Background(), "default", "us-east-1", nil)
 	assert.NoError(t, err)
 	assert.Len(t, results, 0)
 
 	m.instances = []ec2types.Instance{testInstance}
 
-	results, err = c.DescribeInstances(context.Background(), "us-east-1", []string{"i-12345"})
+	results, err = c.DescribeInstances(context.Background(), "default", "us-east-1", []string{"i-12345"})
 	assert.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, &testInstanceProto, results[0])
 
 	m.instancesErr = errors.New("whoops")
-	_, err = c.DescribeInstances(context.Background(), "us-east-1", nil)
+	_, err = c.DescribeInstances(context.Background(), "default", "us-east-1", nil)
 	assert.EqualError(t, err, "whoops")
 }
 
 func TestTerminateInstances(t *testing.T) {
 	m := &mockEC2{}
 	c := &client{
-		clients: map[string]*regionalClient{"us-east-1": {region: "us-east-1", ec2: m}},
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1": {region: "us-east-1", ec2: m},
+				},
+			},
+		},
 	}
 
-	err := c.TerminateInstances(context.Background(), "us-east-1", nil)
+	err := c.TerminateInstances(context.Background(), "default", "us-east-1", nil)
 	assert.NoError(t, err)
 
 	m.terminateErr = errors.New("yikes")
-	err = c.TerminateInstances(context.Background(), "us-east-1", nil)
+	err = c.TerminateInstances(context.Background(), "default", "us-east-1", nil)
 	assert.EqualError(t, err, "yikes")
 }
 
 func TestRebootInstances(t *testing.T) {
 	m := &mockEC2{}
 	c := &client{
-		clients: map[string]*regionalClient{"us-east-1": {region: "us-east-1", ec2: m}},
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1": {region: "us-east-1", ec2: m},
+				},
+			},
+		},
 	}
 
-	err := c.RebootInstances(context.Background(), "us-east-1", nil)
+	err := c.RebootInstances(context.Background(), "default", "us-east-1", nil)
 	assert.NoError(t, err)
 
 	m.rebootErr = errors.New("ohno")
-	err = c.RebootInstances(context.Background(), "us-east-1", nil)
+	err = c.RebootInstances(context.Background(), "default", "us-east-1", nil)
 	assert.EqualError(t, err, "ohno")
 }
 
@@ -289,10 +446,17 @@ func TestResizeAutoscalingGroupErrorHandling(t *testing.T) {
 		updateASGErr: fmt.Errorf("error"),
 	}
 	c := &client{
-		clients: map[string]*regionalClient{"us-east-1": {region: "us-east-1", autoscaling: autoscalingClient}},
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1": {region: "us-east-1", autoscaling: autoscalingClient},
+				},
+			},
+		},
 	}
 
-	err1 := c.ResizeAutoscalingGroup(context.Background(), "us-east-1", "asgname", &ec2v1.AutoscalingGroupSize{
+	err1 := c.ResizeAutoscalingGroup(context.Background(), "default", "us-east-1", "asgname", &ec2v1.AutoscalingGroupSize{
 		Min:     1,
 		Max:     10,
 		Desired: 5,
@@ -300,7 +464,7 @@ func TestResizeAutoscalingGroupErrorHandling(t *testing.T) {
 	assert.Error(t, err1)
 
 	// Test unknown region
-	err2 := c.ResizeAutoscalingGroup(context.Background(), "choice-region-1", "clutch", &ec2v1.AutoscalingGroupSize{})
+	err2 := c.ResizeAutoscalingGroup(context.Background(), "default", "choice-region-1", "clutch", &ec2v1.AutoscalingGroupSize{})
 	assert.Error(t, err2)
 }
 
@@ -326,10 +490,17 @@ func TestDescribeAutoScalingGroups(t *testing.T) {
 		},
 	}
 	c := &client{
-		clients: map[string]*regionalClient{"us-east-1": {region: "us-east-1", autoscaling: autoscalingClient}},
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1": {region: "us-east-1", autoscaling: autoscalingClient},
+				},
+			},
+		},
 	}
 
-	asgs, err := c.DescribeAutoscalingGroups(context.Background(), "us-east-1", []string{"asg-one", "asg-two"})
+	asgs, err := c.DescribeAutoscalingGroups(context.Background(), "default", "us-east-1", []string{"asg-one", "asg-two"})
 	assert.NoError(t, err)
 	assert.Len(t, asgs, 2)
 
@@ -346,17 +517,23 @@ func TestDescribeAutoscalingGroupsErrorHandling(t *testing.T) {
 	autoscalingClient := &mockAutoscaling{
 		describeASGErr: fmt.Errorf("error"),
 	}
-
 	c := &client{
-		clients: map[string]*regionalClient{"us-east-1": {region: "us-east-1", autoscaling: autoscalingClient}},
+		currentAccountAlias: "default",
+		accounts: map[string]*accountClients{
+			"default": {
+				clients: map[string]*regionalClient{
+					"us-east-1": {region: "us-east-1", autoscaling: autoscalingClient},
+				},
+			},
+		},
 	}
 
-	asg1, err1 := c.DescribeAutoscalingGroups(context.Background(), "us-east-1", []string{"asgname"})
+	asg1, err1 := c.DescribeAutoscalingGroups(context.Background(), "default", "us-east-1", []string{"asgname"})
 	assert.Nil(t, asg1)
 	assert.Error(t, err1)
 
 	// Test unknown region
-	asg2, err2 := c.DescribeAutoscalingGroups(context.Background(), "unknown-region", []string{"asgname"})
+	asg2, err2 := c.DescribeAutoscalingGroups(context.Background(), "default", "unknown-region", []string{"asgname"})
 	assert.Nil(t, asg2)
 	assert.Error(t, err2)
 }
@@ -377,8 +554,6 @@ func TestErrorIntercept(t *testing.T) {
 }
 
 type mockEC2 struct {
-	ec2Client
-
 	instancesErr error
 	instances    []ec2types.Instance
 
@@ -422,8 +597,6 @@ func (m *mockEC2) RebootInstances(ctx context.Context, params *ec2.RebootInstanc
 }
 
 type mockAutoscaling struct {
-	autoscalingClient
-
 	describeASGErr    error
 	describeASGOutput *autoscaling.DescribeAutoScalingGroupsOutput
 
@@ -449,4 +622,20 @@ func (ma mockAutoscaling) UpdateAutoScalingGroup(ctx context.Context, params *au
 	}
 
 	return &autoscaling.UpdateAutoScalingGroupOutput{}, nil
+}
+
+func TestRegionalClient(t *testing.T) {
+	c := &s3.Client{}
+
+	r := &regionalClient{s3: c}
+
+	assert.Equal(t, c, r.S3())
+}
+
+func TestRegionalClientConfig(t *testing.T) {
+	c := &aws.Config{Region: "us-west-1"}
+
+	r := &regionalClient{regionCfg: c}
+
+	assert.Equal(t, c, r.Config())
 }

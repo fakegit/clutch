@@ -63,16 +63,32 @@ func (s *svc) ListStatefulSets(ctx context.Context, clientset, cluster, namespac
 
 // ProtoForStatefulSet maps a Kubernetes Stateful Set object to a k8sapiv1 object
 func ProtoForStatefulSet(cluster string, statefulSet *appsv1.StatefulSet) *k8sapiv1.StatefulSet {
-	clusterName := statefulSet.ClusterName
+	clusterName := GetKubeClusterName(statefulSet)
 	if clusterName == "" {
 		clusterName = cluster
 	}
-	return &k8sapiv1.StatefulSet{
+	k8sStateful := &k8sapiv1.StatefulSet{
 		Cluster:     clusterName,
 		Namespace:   statefulSet.Namespace,
 		Name:        statefulSet.Name,
 		Labels:      statefulSet.Labels,
 		Annotations: statefulSet.Annotations,
+		Status:      ProtoForStatus(statefulSet.Status),
+	}
+
+	if !statefulSet.CreationTimestamp.IsZero() {
+		// Convert Unix Timestamp to milliseconds
+		k8sStateful.CreationTimeMillis = statefulSet.CreationTimestamp.UnixNano() / 1e6
+	}
+
+	return k8sStateful
+}
+
+func ProtoForStatus(status appsv1.StatefulSetStatus) *k8sapiv1.StatefulSet_Status {
+	return &k8sapiv1.StatefulSet_Status{
+		Replicas:        uint32(status.Replicas), //nolint
+		UpdatedReplicas: uint32(status.UpdatedReplicas), //nolint
+		ReadyReplicas:   uint32(status.ReadyReplicas), //nolint
 	}
 }
 

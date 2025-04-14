@@ -87,7 +87,7 @@ func (p *OIDCProvider) GetStateNonce(redirectURL string) (string, error) {
 	if u.Scheme != "" || u.Host != "" {
 		return "", errors.New("only relative redirects are supported")
 	}
-	dest := u.Path
+	dest := u.RequestURI()
 	if !strings.HasPrefix(dest, "/") {
 		dest = fmt.Sprintf("/%s", dest)
 	}
@@ -138,7 +138,7 @@ func (p *OIDCProvider) Exchange(ctx context.Context, code string) (*oauth2.Token
 		}
 	}
 
-	return p.signNewToken(ctx, claims)
+	return p.issueAndStoreToken(ctx, claims, true)
 }
 
 func (p *OIDCProvider) CreateToken(ctx context.Context, subject string, tokenType authnmodulev1.CreateTokenRequest_TokenType, expiry *time.Duration) (*oauth2.Token, error) {
@@ -169,25 +169,105 @@ func (p *OIDCProvider) CreateToken(ctx context.Context, subject string, tokenTyp
 		},
 	}
 
-	return p.signNewToken(ctx, claims)
+	return p.issueAndStoreToken(ctx, claims, false)
 }
 
-func (p *OIDCProvider) signNewToken(ctx context.Context, claims *Claims) (*oauth2.Token, error) {
+// Refresh the issuer token. If the provider token is not valid, refresh it. If any error occurs continue auth code flow.
+func (p *OIDCProvider) RefreshToken(ctx context.Context, t *oauth2.Token) (*oauth2.Token, error) {
+	// Extract claims from refresh token. They are also validated by the parser (i.e. to check for expiry).
+	claims := &jwt.StandardClaims{}
+	_, err := jwt.ParseWithClaims(t.RefreshToken, claims, func(token *jwt.Token) (interface{}, error) {
+		return []byte(p.sessionSecret), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Look up refresh token and verify it matches the one stored in the database.
+	rt, err := p.tokenStorage.Read(ctx, claims.Subject, clutchProvider)
+	if err != nil {
+		return nil, err
+	}
+	if rt.RefreshToken != t.RefreshToken {
+		return nil, errors.New("refresh token did not match")
+	}
+
+	// Verify provider token is still valid.
+	pt, err := p.tokenStorage.Read(ctx, claims.Subject, p.providerAlias)
+	if err != nil {
+		return nil, err
+	}
+
+	// Attempt to refresh provider token if not valid.
+	if !pt.Valid() {
+		pt, err = p.oauth2.TokenSource(ctx, pt).Token()
+		if err != nil {
+			return nil, err
+		}
+
+		// Store refreshed provider token.
+		if err := p.tokenStorage.Store(ctx, claims.Subject, p.providerAlias, pt); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create a new token.
+	rawIDToken, ok := pt.Extra("id_token").(string)
+	if !ok {
+		return nil, errors.New("'id_token' was not present in provider token")
+	}
+
+	// Verify. This is superfluous since the token was just issued but it can't hurt.
+	idToken, err := p.verifier.Verify(ctx, rawIDToken)
+	if err != nil {
+		return nil, err
+	}
+
+	// Issue token with claims.
+	newClaims, err := p.claimsFromOIDCToken(ctx, idToken)
+	if err != nil {
+		return nil, err
+	}
+
+	newToken, err := p.issueAndStoreToken(ctx, newClaims, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return token.
+	return newToken, nil
+}
+
+// Issues and stores a token based on the provided claims. If refresh is true and storage is enabled, a refresh
+// token will be issued as well.
+func (p *OIDCProvider) issueAndStoreToken(ctx context.Context, claims *Claims, refresh bool) (*oauth2.Token, error) {
 	// Sign and issue token.
 	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(p.sessionSecret))
 	if err != nil {
 		return nil, err
 	}
 	t := &oauth2.Token{
-		AccessToken:  accessToken,
-		Expiry:       time.Unix(claims.ExpiresAt, 0),
-		RefreshToken: "", // TODO: implement refresh_token flow with stateful sessions.
-		TokenType:    "Bearer",
+		AccessToken: accessToken,
+		Expiry:      time.Unix(claims.ExpiresAt, 0),
+		TokenType:   "Bearer",
 	}
 
 	if p.tokenStorage != nil {
-		err := p.tokenStorage.Store(ctx, claims.Subject, clutchProvider, t)
-		if err != nil {
+		if refresh {
+			refreshClaims := &jwt.StandardClaims{
+				ExpiresAt: time.Now().Add(time.Hour * 12).Unix(), // TODO: configurable refresh token lifetime
+				Issuer:    claims.Issuer,
+				Subject:   claims.Subject,
+			}
+
+			refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(p.sessionSecret))
+			if err != nil {
+				return nil, err
+			}
+			t.RefreshToken = refreshToken
+		}
+
+		if err := p.tokenStorage.Store(ctx, claims.Subject, clutchProvider, t); err != nil {
 			return nil, err
 		}
 	}
@@ -325,7 +405,10 @@ func NewOIDCProvider(ctx context.Context, config *authnv1.Config, tokenStorage S
 	if err := pClaims.Check("authorization_code"); err != nil {
 		return nil, err
 	}
-
+	claimsFromOIDCTokenFunc := DefaultClaimsFromOIDCToken
+	if c.SubjectClaimNameOverride != "" {
+		claimsFromOIDCTokenFunc = NewClaimsConfig(c.SubjectClaimNameOverride, c.GroupsClaimNameOverride).ClaimsFromOIDCToken
+	}
 	p := &OIDCProvider{
 		providerAlias:              alias,
 		provider:                   provider,
@@ -333,12 +416,71 @@ func NewOIDCProvider(ctx context.Context, config *authnv1.Config, tokenStorage S
 		oauth2:                     oc,
 		httpClient:                 ctx.Value(oauth2.HTTPClient).(*http.Client),
 		sessionSecret:              config.SessionSecret,
-		claimsFromOIDCToken:        DefaultClaimsFromOIDCToken,
+		claimsFromOIDCToken:        claimsFromOIDCTokenFunc,
 		tokenStorage:               tokenStorage,
 		enableServiceTokenCreation: tokenStorage != nil && config.EnableServiceTokenCreation,
 	}
 
 	return p, nil
+}
+
+func NewClaimsConfig(subjectClaimName string, groupsClaimName string) *ClaimsConfig {
+	return &ClaimsConfig{
+		subjectClaimName: subjectClaimName,
+		groupsClaimName:  groupsClaimName,
+	}
+}
+
+type ClaimsConfig struct {
+	subjectClaimName string
+	groupsClaimName  string
+}
+
+func (cc *ClaimsConfig) ClaimsFromOIDCToken(ctx context.Context, t *oidc.IDToken) (*Claims, error) {
+	claims := make(map[string]interface{})
+	if err := t.Claims(&claims); err != nil {
+		return nil, err
+	}
+
+	subjectInt, ok := claims[cc.subjectClaimName]
+	if !ok {
+		return nil, fmt.Errorf("claims do not contain %s field", cc.subjectClaimName)
+	}
+	subject, ok := subjectInt.(string)
+	if !ok {
+		return nil, fmt.Errorf("claims field %s does not contain string value", cc.subjectClaimName)
+	}
+	if subject == "" {
+		return nil, fmt.Errorf("claims field %s is empty", cc.subjectClaimName)
+	}
+	var groups []string
+	if cc.groupsClaimName != "" {
+		groupsInt, ok := claims[cc.groupsClaimName]
+		if !ok {
+			return nil, fmt.Errorf("claims did not deserialize with %s field", cc.groupsClaimName)
+		}
+		groupsIntSlice, ok := groupsInt.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("group claim did not deserialize with %s field, groups claim must be a list", cc.groupsClaimName)
+		}
+
+		for _, v := range groupsIntSlice {
+			group, ok := v.(string)
+
+			if !ok {
+				return nil, fmt.Errorf("claims did not deserialize with %s field, group %v", cc.groupsClaimName, v)
+			}
+
+			groups = append(groups, group)
+		}
+	}
+
+	sc := oidcTokenToStandardClaims(t)
+	sc.Subject = subject
+	return &Claims{
+		StandardClaims: sc,
+		Groups:         groups,
+	}, nil
 }
 
 func oidcTokenToStandardClaims(t *oidc.IDToken) *jwt.StandardClaims {
@@ -356,6 +498,13 @@ type oidcProviderClaims struct {
 }
 
 func (pc *oidcProviderClaims) Check(grantType string) error {
+	if len(pc.GrantTypesSupported) == 0 {
+		// if the list of supported grant types was omitted by the provider we fall
+		// back to the defaults defined by the OpenID Provider Metadata spec
+		// https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+		pc.GrantTypesSupported = append(pc.GrantTypesSupported, "authorization_code")
+		pc.GrantTypesSupported = append(pc.GrantTypesSupported, "implicit")
+	}
 	for _, gt := range pc.GrantTypesSupported {
 		if gt == grantType {
 			return nil

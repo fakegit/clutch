@@ -1,6 +1,5 @@
 import React from "react";
 import type { clutch as IClutch } from "@clutch-sh/api";
-import type { BaseWorkflowProps } from "@clutch-sh/core";
 import {
   Button,
   ButtonGroup,
@@ -9,11 +8,15 @@ import {
   Tab,
   Tabs,
   TextField,
+  useTheme,
   useWizardContext,
 } from "@clutch-sh/core";
 import { useDataLayout } from "@clutch-sh/data-layout";
 import type { WizardChild } from "@clutch-sh/wizard";
 import { Wizard, WizardStep } from "@clutch-sh/wizard";
+import FileSaver from "file-saver";
+
+import type { TriageChild, WorkflowProps } from "../index";
 
 import Clusters from "./clusters";
 import Dashboard from "./dashboard";
@@ -31,14 +34,22 @@ const INCLUDE_OPTIONS = {
   serverInfo: true,
 };
 
-const TriageIdentifier: React.FC<WizardChild> = () => {
+const TriageIdentifier: React.FC<TriageChild> = ({ host = "" }) => {
   const { onSubmit } = useWizardContext();
   const resourceData = useDataLayout("resourceData");
+
+  React.useEffect(() => {
+    if (host) {
+      resourceData.value.host = host;
+      onSubmit();
+    }
+    return () => {};
+  }, [host]);
 
   return (
     <>
       <TextField
-        label="IP Address or Hostname"
+        label="IP Address"
         placeholder="127.0.0.1"
         onChange={e => resourceData.updateData("host", e.target.value)}
         onReturn={onSubmit}
@@ -50,27 +61,35 @@ const TriageIdentifier: React.FC<WizardChild> = () => {
   );
 };
 
+// This function is here for downloading the envoy config dump.
+const download = (data, host) => {
+  const output = new Blob([JSON.stringify(data, null, "\t")]);
+  const timestamp = Date.now();
+  FileSaver.saveAs(output, `envoy_config_dump_${host}_${timestamp}.json`);
+};
+
 const TriageDetails: React.FC<WizardChild> = () => {
+  const theme = useTheme();
   const remoteData = useDataLayout("remoteData");
   const metadata = remoteData.value.nodeMetadata as IClutch.envoytriage.v1.NodeMetadata;
-  const { clusters, listeners, runtime, stats, serverInfo } =
+  const { clusters, configDump, listeners, runtime, stats, serverInfo } =
     (remoteData.value?.output as IClutch.envoytriage.v1.Result.Output) || {};
 
   const failingClusterCount = clusters?.clusterStatuses.filter(
     cluster => cluster.hostStatuses.filter(host => !host.healthy).length > 0
   ).length;
-  const healthyClusterCount = clusters?.clusterStatuses.length - failingClusterCount;
+  const healthyClusterCount = (clusters?.clusterStatuses || []).length - failingClusterCount;
 
   const data = [
     {
       id: "Running",
       value: healthyClusterCount,
-      color: "#69F0AE",
+      color: theme.palette.success[300],
     },
     {
       id: "Failing",
       value: failingClusterCount,
-      color: "#FF8A80",
+      color: theme.palette.error[300],
     },
   ];
   const dashboardFeaturedSummary = { name: "Clusters", data };
@@ -79,6 +98,7 @@ const TriageDetails: React.FC<WizardChild> = () => {
     { name: "Runtime Keys", value: runtime?.entries?.length || 0 },
     { name: "Stats", value: stats?.stats?.length || 0 },
   ];
+
   return (
     <WizardStep error={remoteData.error} isLoading={remoteData.isLoading}>
       <MetadataTable
@@ -91,6 +111,12 @@ const TriageDetails: React.FC<WizardChild> = () => {
           { name: "Service Zone", value: metadata?.serviceZone },
           { name: "Service Cluster", value: metadata?.serviceCluster },
         ]}
+      />
+      <Button
+        text="Download Config Dump"
+        onClick={() => {
+          download(configDump?.value, remoteData.value.address?.host);
+        }}
       />
       <Tabs>
         <Tab label="Dashboard">
@@ -120,7 +146,10 @@ const TriageDetails: React.FC<WizardChild> = () => {
   );
 };
 
-const RemoteTriage: React.FC<BaseWorkflowProps> = ({ heading }) => {
+const RemoteTriage: React.FC<WorkflowProps> = ({ heading }) => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const hostParam = urlParams.get("_q");
+
   const dataLayout = {
     resourceData: {},
     remoteData: {
@@ -144,7 +173,7 @@ const RemoteTriage: React.FC<BaseWorkflowProps> = ({ heading }) => {
 
   return (
     <Wizard dataLayout={dataLayout} heading={heading}>
-      <TriageIdentifier name="Lookup" />
+      <TriageIdentifier name="Lookup" host={hostParam} />
       <TriageDetails name="Details" />
     </Wizard>
   );

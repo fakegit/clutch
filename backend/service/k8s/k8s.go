@@ -8,7 +8,7 @@ import (
 	"context"
 
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
 	batchv1 "k8s.io/api/batch/v1"
@@ -52,12 +52,14 @@ func New(cfg *any.Any, logger *zap.Logger, scope tally.Scope) (service.Service, 
 type Service interface {
 	// All names of clientsets.
 	Clientsets(ctx context.Context) ([]string, error)
+	GetK8sClientset(ctx context.Context, clientset string) (ContextClientset, error)
 
 	// Pod management functions.
 	DescribePod(ctx context.Context, clientset, cluster, namespace, name string) (*k8sapiv1.Pod, error)
 	DeletePod(ctx context.Context, clientset, cluster, namespace, name string) error
 	ListPods(ctx context.Context, clientset, cluster, namespace string, listOptions *k8sapiv1.ListOptions) ([]*k8sapiv1.Pod, error)
 	UpdatePod(ctx context.Context, clientset, cluster, namespace, name string, expected_object_meta_fields *k8sapiv1.ExpectedObjectMetaFields, object_meta_fields *k8sapiv1.ObjectMetaFields, remove_object_meta_fields *k8sapiv1.RemoveObjectMetaFields) error
+	GetPodLogs(ctx context.Context, clientset, cluster, namespace, name string, opts *k8sapiv1.PodLogsOptions) (*k8sapiv1.GetPodLogsResponse, error)
 
 	// HPA management functions.
 	DescribeHPA(ctx context.Context, clientset, cluster, namespace, name string) (*k8sapiv1.HPA, error)
@@ -72,6 +74,7 @@ type Service interface {
 
 	// Service management functions.
 	DescribeService(ctx context.Context, clientset, cluster, namespace, name string) (*k8sapiv1.Service, error)
+	ListServices(ctx context.Context, clientset, cluster, namespace string, listOptions *k8sapiv1.ListOptions) ([]*k8sapiv1.Service, error)
 	DeleteService(ctx context.Context, clientset, cluster, namespace, name string) error
 
 	// StatefulSet management functions.
@@ -91,12 +94,22 @@ type Service interface {
 	ListConfigMaps(ctx context.Context, clientset, cluster, namespace string, listOptions *k8sapiv1.ListOptions) ([]*k8sapiv1.ConfigMap, error)
 
 	// Job management functions.
+	DescribeJob(ctx context.Context, clientset, cluster, namespace, name string) (*k8sapiv1.Job, error)
 	DeleteJob(ctx context.Context, clientset, cluster, namespace, name string) error
 	ListJobs(ctx context.Context, clientset, cluster, namespace string, listOptions *k8sapiv1.ListOptions) ([]*k8sapiv1.Job, error)
 	CreateJob(ctx context.Context, clientset, cluster, namespace string, job *batchv1.Job) (*k8sapiv1.Job, error)
 
 	// Namespace management functions.
 	DescribeNamespace(ctx context.Context, clientset, cluster, name string) (*k8sapiv1.Namespace, error)
+
+	// Event management functions.
+	ListEvents(ctx context.Context, clientset, cluster, namespace, object string, kind k8sapiv1.ObjectKind) ([]*k8sapiv1.Event, error)
+
+	// Node management functions.
+	DescribeNode(ctx context.Context, clientset, cluster, name string) (*k8sapiv1.Node, error)
+	UpdateNode(ctx context.Context, clientset, cluster, name string, unschedulable bool) error
+
+	ListNamespaceEvents(ctx context.Context, clientset, cluster, namespace string, types []k8sapiv1.EventType) ([]*k8sapiv1.Event, error)
 }
 
 type svc struct {
@@ -128,6 +141,11 @@ func (s *svc) Clientsets(ctx context.Context) ([]string, error) {
 		ret = append(ret, name)
 	}
 	return ret, nil
+}
+
+func (s *svc) GetK8sClientset(ctx context.Context, clientset string) (ContextClientset, error) {
+	// Dont specify cluster or namespace, were simply looking for the clientset.
+	return s.manager.GetK8sClientset(ctx, clientset, "", "")
 }
 
 // Implement the interface provided by errorintercept, so errors are caught at middleware and converted to gRPC status.

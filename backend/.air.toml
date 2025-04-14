@@ -9,9 +9,9 @@ tmp_dir = ".air"
 # Just plain old shell command. You could use `make` as well.
 cmd = "go build -o .air/clutch ."
 # Binary file yields from `cmd`.
-bin = ".air/clutch"
+bin = ".air/clutch -env .env.local"
 # Watch these filename extensions.
-include_ext = ["go"]
+include_ext = ["go", "yaml"]
 # Ignore these filename extensions or directories.
 exclude_dir = ["api"]
 # This log file places in your tmp_dir.

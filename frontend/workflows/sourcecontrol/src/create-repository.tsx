@@ -18,8 +18,8 @@ import type { WizardChild } from "@clutch-sh/wizard";
 import { Wizard, WizardStep } from "@clutch-sh/wizard";
 import styled from "@emotion/styled";
 import { yupResolver } from "@hookform/resolvers/yup";
-import LockIcon from "@material-ui/icons/Lock";
-import LockOpenIcon from "@material-ui/icons/LockOpen";
+import LockIcon from "@mui/icons-material/Lock";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
 import * as yup from "yup";
 
 import type { WorkflowProps } from ".";
@@ -41,7 +41,11 @@ const visibilityOptions = {
 };
 
 const RepositoryDetails: React.FC<WizardChild> = () => {
-  const { register, errors, handleSubmit } = useForm({
+  const {
+    register,
+    formState: { errors },
+    handleSubmit,
+  } = useForm({
     mode: "onChange",
     reValidateMode: "onChange",
     resolver: yupResolver(schema),
@@ -66,17 +70,17 @@ const RepositoryDetails: React.FC<WizardChild> = () => {
           label="Name"
           name="name"
           onChange={e => repositoryData.updateData("name", e.target.value)}
-          inputRef={register}
           helperText={errors.name ? errors.name.message : ""}
           error={!!errors.name}
+          formRegistration={register}
         />
         <TextField
           label="Description"
           name="description"
           onChange={e => repositoryData.updateData("description", e.target.value)}
-          inputRef={register}
           error={!!errors.description}
           helperText={errors.description ? errors.description.message : ""}
+          formRegistration={register}
         />
         <Select
           name="visibility"
@@ -137,7 +141,7 @@ const CreateRepository: React.FC<WorkflowProps> = ({ heading }) => {
   return (
     <Wizard dataLayout={dataLayout} heading={heading}>
       <RepositoryDetails name="Repository Details" />
-      <Confirm name="Confirmation" />
+      <Confirm name="Result" />
     </Wizard>
   );
 };

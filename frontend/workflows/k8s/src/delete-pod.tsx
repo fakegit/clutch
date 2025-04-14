@@ -5,22 +5,25 @@ import {
   ButtonGroup,
   client,
   Confirmation,
+  FeatureOff,
+  FeatureOn,
   MetadataTable,
+  NotePanel,
   Resolver,
+  SimpleFeatureFlag,
+  Typography,
   useWizardContext,
 } from "@clutch-sh/core";
 import { useDataLayout } from "@clutch-sh/data-layout";
-import type { WizardChild } from "@clutch-sh/wizard";
 import { Wizard, WizardStep } from "@clutch-sh/wizard";
 import _ from "lodash";
 
-import type { ConfirmChild, ResolverChild, WorkflowProps } from ".";
+import type { ConfirmChild, ResolverChild, VerifyChild, WorkflowProps } from ".";
 
-const PodIdentifier: React.FC<ResolverChild> = ({ resolverType }) => {
+const PodIdentifier: React.FC<ResolverChild> = ({ resolverType, notes = [] }) => {
   const { onSubmit } = useWizardContext();
   const resolvedResourceData = useDataLayout("resourceData");
   const resolverInput = useDataLayout("resolverInput");
-
   const onResolve = ({ results, input }) => {
     // Decide how to process results.
     resolvedResourceData.assign(results[0]);
@@ -28,17 +31,19 @@ const PodIdentifier: React.FC<ResolverChild> = ({ resolverType }) => {
     onSubmit();
   };
 
-  return <Resolver type={resolverType} searchLimit={1} onResolve={onResolve} />;
+  return <Resolver type={resolverType} searchLimit={1} onResolve={onResolve} notes={notes} />;
 };
 
-const PodDetails: React.FC<WizardChild> = () => {
+const PodDetails: React.FC<VerifyChild> = ({ notes = [] }) => {
   const { onSubmit, onBack } = useWizardContext();
   const resourceData = useDataLayout("resourceData");
   const instance = resourceData.displayValue() as IClutch.k8s.v1.Pod;
+  const locationNotes = notes.filter(note => note.location === "verify");
 
   return (
     <WizardStep error={resourceData.error} isLoading={resourceData.isLoading}>
       <strong>Pod Details</strong>
+      <NotePanel notes={locationNotes} />
       <MetadataTable
         data={[
           { name: "Name", value: instance.name },
@@ -50,19 +55,20 @@ const PodDetails: React.FC<WizardChild> = () => {
         ]}
       />
       <ButtonGroup>
-        <Button text="Back" variant="neutral" onClick={onBack} />
+        <SimpleFeatureFlag feature="k8sDashOrigin">
+          <FeatureOn>
+            <Button text="Back" variant="neutral" onClick={() => onBack({ toOrigin: true })} />
+          </FeatureOn>
+          <FeatureOff>
+            <Button text="Back" variant="neutral" onClick={() => onBack()} />
+          </FeatureOff>
+        </SimpleFeatureFlag>
         <Button text="Delete" variant="destructive" onClick={onSubmit} />
       </ButtonGroup>
     </WizardStep>
   );
 };
 
-/*
-TODO: Need information boxes for
-  These changes are not permanent, and will be overwritten on your next deploy. Adjust your manifest.yaml to persist changes across deploys.
-and
-  Note: the HPA should take just a few minutes to scale in either direction.
-*/
 const Confirm: React.FC<ConfirmChild> = () => {
   const deletionData = useDataLayout("deletionData");
   const podData = useDataLayout("resourceData");
@@ -81,7 +87,16 @@ const Confirm: React.FC<ConfirmChild> = () => {
   );
 };
 
-const DeletePod: React.FC<WorkflowProps> = ({ heading, resolverType }) => {
+const ConfirmDeletePod = () => {
+  const podData = useDataLayout("resourceData");
+  const { name } = podData.displayValue();
+
+  return (
+    <Typography variant="body1">{`You are about to delete pod ${name}, are you sure to proceed?`}</Typography>
+  );
+};
+
+const DeletePod: React.FC<WorkflowProps> = ({ heading, resolverType, notes = [] }) => {
   const dataLayout = {
     resolverInput: {},
     resourceData: {},
@@ -101,9 +116,16 @@ const DeletePod: React.FC<WorkflowProps> = ({ heading, resolverType }) => {
 
   return (
     <Wizard dataLayout={dataLayout} heading={heading}>
-      <PodIdentifier name="Lookup" resolverType={resolverType} />
-      <PodDetails name="Verify" />
-      <Confirm name="Confirmation" />
+      <PodIdentifier name="Lookup" resolverType={resolverType} notes={notes} />
+      <PodDetails
+        name="Verify"
+        notes={notes}
+        confirmActionSettings={{
+          title: "Delete pod",
+          description: <ConfirmDeletePod />,
+        }}
+      />
+      <Confirm name="Result" />
     </Wizard>
   );
 };

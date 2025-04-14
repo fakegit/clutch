@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"golang.org/x/net/http2"
@@ -30,12 +31,16 @@ import (
 )
 
 const (
-	xHeader        = "X-"
-	xForwardedFor  = "X-Forwarded-For"
-	xForwardedHost = "X-Forwarded-Host"
+	xHeader         = "X-"
+	xForwardedFor   = "X-Forwarded-For"
+	xForwardedHost  = "X-Forwarded-Host"
+	staticAssetPath = "/static/"
 )
 
-var apiPattern = regexp.MustCompile(`^/v\d+/`)
+var (
+	apiPattern         = regexp.MustCompile(`^/v\d+/`)
+	staticRoutePattern = regexp.MustCompile(`^/static*`)
+)
 
 type assetHandler struct {
 	assetCfg *gatewayv1.Assets
@@ -56,6 +61,19 @@ func copyHTTPResponse(resp *http.Response, w http.ResponseWriter) {
 }
 
 func (a *assetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, ".ico") ||
+		strings.HasSuffix(r.URL.Path, ".svg") ||
+		strings.HasSuffix(r.URL.Path, ".webp") {
+		if !strings.Contains(r.URL.Path[1:], "/") {
+			if f, err := a.fileSystem.Open(r.URL.Path); err == nil {
+				defer f.Close()
+				w.Header().Set("Cache-Control", "public, max-age=86400")
+				http.ServeContent(w, r, r.URL.Path, time.Time{}, f)
+				return
+			}
+		}
+	}
+
 	if apiPattern.MatchString(r.URL.Path) || r.URL.Path == "/healthcheck" {
 		// Serve from the embedded API handler.
 		a.next.ServeHTTP(w, r)
@@ -76,10 +94,17 @@ func (a *assetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Set the original path.
 	r.URL.Path = origPath
 
+	// if enableStaticBaseRoute is set to true, we wont attempt to serve assets if there is no extension in the path.
+	// This is to prevent serving the SPA when the user is trying to access a nested route.
+	if a.isStaticPathRoutable(r.URL.Path) {
+		r.URL.Path = "/"
+		a.fileServer.ServeHTTP(w, r)
+	}
+
 	// Serve!
 	if f, err := a.fileSystem.Open(r.URL.Path); err != nil {
 		// If not a known static asset and an asset provider is configured, try streaming from the configured provider.
-		if a.assetCfg != nil && a.assetCfg.Provider != nil && strings.HasPrefix(r.URL.Path, "/static/") {
+		if a.assetCfg != nil && a.assetCfg.Provider != nil && strings.HasPrefix(r.URL.Path, staticAssetPath) {
 			// We attach this header simply for observability purposes.
 			// Otherwise its difficult to know if the assets are being served from the configured provider.
 			w.Header().Set("x-clutch-asset-passthrough", "true")
@@ -110,6 +135,15 @@ func (a *assetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.fileServer.ServeHTTP(w, r)
 }
 
+func (a *assetHandler) isStaticPathRoutable(urlPath string) bool {
+	if a.assetCfg != nil && a.assetCfg.RoutableStaticPath {
+		// If the path is the base route, we need to serve the SPA.
+		return staticRoutePattern.MatchString(urlPath) && path.Ext(urlPath) == "" && urlPath != "/"
+	}
+
+	return false
+}
+
 func (a *assetHandler) assetProviderHandler(ctx context.Context, urlPath string) (io.ReadCloser, error) {
 	switch a.assetCfg.Provider.(type) {
 	case *gatewayv1.Assets_S3:
@@ -125,6 +159,7 @@ func (a *assetHandler) assetProviderHandler(ctx context.Context, urlPath string)
 
 		return awsClient.S3StreamingGet(
 			ctx,
+			awsClient.GetPrimaryAccountAlias(),
 			a.assetCfg.GetS3().Region,
 			a.assetCfg.GetS3().Bucket,
 			path.Join(a.assetCfg.GetS3().Key, strings.TrimPrefix(urlPath, "/static")),
@@ -155,36 +190,53 @@ func getAssetProviderService(assetCfg *gatewayv1.Assets) (service.Service, error
 	}
 }
 
-func customResponseForwarder(ctx context.Context, w http.ResponseWriter, resp proto.Message) error {
-	md, ok := runtime.ServerMetadataFromContext(ctx)
-	if !ok {
+func newCustomResponseForwarder(secureCookies bool) func(context.Context, http.ResponseWriter, proto.Message) error {
+	return func(ctx context.Context, w http.ResponseWriter, resp proto.Message) error {
+		md, ok := runtime.ServerMetadataFromContext(ctx)
+		if !ok {
+			return nil
+		}
+
+		if cookies := md.HeaderMD.Get("Set-Cookie-Token"); len(cookies) > 0 {
+			cookie := &http.Cookie{
+				Name:     "token",
+				Value:    cookies[0],
+				Path:     "/",
+				HttpOnly: false,
+				Secure:   secureCookies,
+			}
+			http.SetCookie(w, cookie)
+		}
+
+		if cookies := md.HeaderMD.Get("Set-Cookie-Refresh-Token"); len(cookies) > 0 {
+			cookie := &http.Cookie{
+				Name:     "refreshToken",
+				Value:    cookies[0],
+				Path:     "/v1/authn/login",
+				HttpOnly: true, // Client cannot access refresh token, it is sent by browser only if login is attempted.
+				Secure:   secureCookies,
+			}
+			http.SetCookie(w, cookie)
+		}
+
+		// Redirect if it's the browser (non-XHR).
+		redirects := md.HeaderMD.Get("Location")
+		if len(redirects) > 0 && isBrowser(requestHeadersFromResponseWriter(w)) {
+			code := http.StatusFound
+			if st := md.HeaderMD.Get("Location-Status"); len(st) > 0 {
+				headerCodeOverride, err := strconv.Atoi(st[0])
+				if err != nil {
+					return err
+				}
+				code = headerCodeOverride
+			}
+
+			w.Header().Set("Location", redirects[0])
+			w.WriteHeader(code)
+		}
+
 		return nil
 	}
-
-	if cookies := md.HeaderMD.Get("Set-Cookie-Token"); len(cookies) > 0 {
-		cookie := &http.Cookie{
-			Name:     "token",
-			Value:    cookies[0],
-			Path:     "/",
-			HttpOnly: false,
-		}
-		http.SetCookie(w, cookie)
-	}
-
-	if redirects := md.HeaderMD.Get("Location"); len(redirects) > 0 {
-		w.Header().Set("Location", redirects[0])
-
-		code := http.StatusFound
-		if st := md.HeaderMD.Get("Location-Status"); len(st) > 0 {
-			headerCodeOverride, err := strconv.Atoi(st[0])
-			if err != nil {
-				return err
-			}
-			code = headerCodeOverride
-		}
-		w.WriteHeader(code)
-	}
-	return nil
 }
 
 func customHeaderMatcher(key string) (string, bool) {
@@ -201,31 +253,26 @@ func customHeaderMatcher(key string) (string, bool) {
 }
 
 func customErrorHandler(ctx context.Context, mux *runtime.ServeMux, m runtime.Marshaler, w http.ResponseWriter, req *http.Request, err error) {
-	//  TODO(maybe): once we have non-browser clients we probably want to avoid the redirect and directly return the error.
-	if s, ok := status.FromError(err); ok && s.Code() == codes.Unauthenticated {
-		referer := req.Referer()
-		redirectPath := "/v1/authn/login"
-		if len(referer) != 0 {
-			referer, err := url.Parse(referer)
-			if err != nil {
-				runtime.DefaultHTTPErrorHandler(ctx, mux, m, w, req, err)
-				return
-			}
-			if redirectPath != referer.Path {
-				redirectPath = fmt.Sprintf("%s?redirect_url=%s", redirectPath, referer.Path)
-			}
+	if isBrowser(req.Header) { // Redirect if it's the browser (non-XHR).
+		if s, ok := status.FromError(err); ok && s.Code() == codes.Unauthenticated {
+			redirectPath := fmt.Sprintf("/v1/authn/login?redirect_url=%s", url.QueryEscape(req.RequestURI))
+			http.Redirect(w, req, redirectPath, http.StatusFound)
+			return
 		}
-
-		http.Redirect(w, req, redirectPath, http.StatusFound)
-		return
 	}
+
 	runtime.DefaultHTTPErrorHandler(ctx, mux, m, w, req, err)
 }
 
-func New(unaryInterceptors []grpc.UnaryServerInterceptor, assets http.FileSystem, gatewayCfg *gatewayv1.GatewayOptions) (*Mux, error) {
+func New(unaryInterceptors []grpc.UnaryServerInterceptor, assets http.FileSystem, metricsHandler http.Handler, gatewayCfg *gatewayv1.GatewayOptions) (*Mux, error) {
+	secureCookies := true
+	if gatewayCfg.SecureCookies != nil {
+		secureCookies = gatewayCfg.SecureCookies.Value
+	}
+
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(unaryInterceptors...))
 	jsonGateway := runtime.NewServeMux(
-		runtime.WithForwardResponseOption(customResponseForwarder),
+		runtime.WithForwardResponseOption(newCustomResponseForwarder(secureCookies)),
 		runtime.WithErrorHandler(customErrorHandler),
 		runtime.WithMarshalerOption(
 			runtime.MIMEWildcard,
@@ -261,6 +308,19 @@ func New(unaryInterceptors []grpc.UnaryServerInterceptor, assets http.FileSystem
 
 	if gatewayCfg.EnablePprof {
 		httpMux.HandleFunc("/debug/pprof/", pprof.Index)
+	}
+
+	if metricsHandler != nil {
+		_, ok := gatewayCfg.Stats.Reporter.(*gatewayv1.Stats_PrometheusReporter_)
+		if !ok {
+			return nil, fmt.Errorf("Expected *gatewayv1.Stats_PrometheusReporter_, got %T", gatewayCfg.Stats.Reporter)
+		}
+		metricsPath := "/metrics"
+		promCfg := gatewayCfg.Stats.GetPrometheusReporter()
+		if promCfg.HandlerPath != "" {
+			metricsPath = promCfg.HandlerPath
+		}
+		httpMux.Handle(metricsPath, metricsHandler)
 	}
 
 	mux := &Mux{

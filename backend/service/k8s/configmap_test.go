@@ -61,7 +61,7 @@ func TestListConfigMaps(t *testing.T) {
 
 	s := &svc{
 		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": &ctxClientsetImpl{
+			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": {
 				Interface: cs,
 				namespace: "testing-namespace",
 				cluster:   "testing-cluster",
@@ -110,7 +110,7 @@ func TestDescribeConfigMap(t *testing.T) {
 
 	s := &svc{
 		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": &ctxClientsetImpl{
+			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": {
 				Interface: cs,
 				namespace: "testing-namespace",
 				cluster:   "testing-cluster",
@@ -135,7 +135,7 @@ func TestDeleteConfigMap(t *testing.T) {
 
 	s := &svc{
 		manager: &managerImpl{
-			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": &ctxClientsetImpl{
+			clientsets: map[string]*ctxClientsetImpl{"testing-clientset": {
 				Interface: cs,
 				namespace: "testing-namespace",
 				cluster:   "testing-cluster",
@@ -158,7 +158,7 @@ func TestDeleteConfigMap(t *testing.T) {
 func TestProtoForConfigMap(t *testing.T) {
 	t.Parallel()
 
-	var configMapTestCases = []struct {
+	configMapTestCases := []struct {
 		id                  string
 		inputClusterName    string
 		expectedClusterName string
@@ -170,7 +170,9 @@ func TestProtoForConfigMap(t *testing.T) {
 			expectedClusterName: "production",
 			configMap: &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					ClusterName: "production",
+					Labels: map[string]string{
+						clutchLabelClusterName: "production",
+					},
 				},
 			},
 		},
@@ -180,7 +182,9 @@ func TestProtoForConfigMap(t *testing.T) {
 			expectedClusterName: "staging",
 			configMap: &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					ClusterName: "",
+					Labels: map[string]string{
+						clutchLabelClusterName: "staging",
+					},
 				},
 			},
 		},
@@ -190,7 +194,9 @@ func TestProtoForConfigMap(t *testing.T) {
 			expectedClusterName: "test",
 			configMap: &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					ClusterName: "",
+					Labels: map[string]string{
+						clutchLabelClusterName: "test",
+					},
 				},
 				Data: map[string]string{
 					"key1": "value1",
@@ -205,7 +211,6 @@ func TestProtoForConfigMap(t *testing.T) {
 	}
 
 	for _, tt := range configMapTestCases {
-		tt := tt
 		t.Run(tt.id, func(t *testing.T) {
 			t.Parallel()
 

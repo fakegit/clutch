@@ -1,15 +1,15 @@
 import * as React from "react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter } from "react-router-dom";
 import styled from "@emotion/styled";
-import { Box, Grid as MuiGrid } from "@material-ui/core";
+import { Box, Grid as MuiGrid, Theme } from "@mui/material";
 import type { Meta } from "@storybook/react";
 
 import { ApplicationContext } from "../../Contexts/app-context";
-import SearchField from "../search";
+import SearchFieldComponent from "../search";
 
 export default {
   title: "Core/AppLayout/Search Field",
-  component: SearchField,
+  component: SearchFieldComponent,
   decorators: [
     Search => {
       return (
@@ -21,12 +21,14 @@ export default {
     StoryFn => {
       return (
         <ApplicationContext.Provider
+          // eslint-disable-next-line react/jsx-no-constructed-context-values
           value={{
             workflows: [
               {
                 developer: { name: "Lyft", contactUrl: "mailto:hello@clutch.sh" },
                 displayName: "EC2",
                 group: "AWS",
+                icon: { path: "" },
                 path: "ec2",
                 routes: [
                   {
@@ -58,17 +60,17 @@ export default {
   ],
 } as Meta;
 
-const Grid = styled(MuiGrid)({
+const Grid = styled(MuiGrid)(({ theme }: { theme: Theme }) => ({
   height: "64px",
-  backgroundColor: "#131C5F",
-});
+  backgroundColor: theme.palette.primary[900],
+}));
 
 const Template = () => (
-  <Grid container alignItems="center" justify="center">
+  <Grid container alignItems="center" justifyContent="center">
     <Box>
-      <SearchField />
+      <SearchFieldComponent />
     </Box>
   </Grid>
 );
 
-export const Primary = Template.bind({});
+export const SearchField = Template.bind({});

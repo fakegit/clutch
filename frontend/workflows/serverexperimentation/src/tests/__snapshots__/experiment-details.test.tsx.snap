@@ -1,80 +1,546 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`Start Experiment workflow renders correctly 1`] = `
-"<Styled(div)>
-  <h3 style={{...}}>
-    Cluster Pair
-  </h3>
-  <TextField name=\\"downstreamCluster\\" label=\\"Downstream Cluster\\" defaultValue={[undefined]} type=\\"text\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <TextField name=\\"upstreamCluster\\" label=\\"Upstream Cluster\\" defaultValue={[undefined]} type=\\"text\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <h3 style={{...}}>
-    Targeting
-  </h3>
-  <TextField name=\\"requestsPercentage\\" label=\\"Percentage of Requests Served by All Hosts\\" defaultValue=\\"0\\" type=\\"number\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <h3 style={{...}}>
-    Faults
-  </h3>
-  <Select name=\\"faultType\\" label=\\"Fault Type\\" options={{...}} defaultOption={0} onChange={[Function: onChange]} />
-  <TextField name=\\"httpStatus\\" label=\\"HTTP Status\\" defaultValue={[undefined]} type=\\"number\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-</Styled(div)>"
+exports[`renders correctly 1`] = `
+<DocumentFragment>
+  <form
+    class="css-1dkqlr9"
+  >
+    <h3
+      style="text-align: center;"
+    >
+      Cluster Pair
+    </h3>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1wvyz87-MuiFormControl-root-MuiTextField-root"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary css-1eup1al-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+        for="mui-1"
+        id="mui-1-label"
+      >
+        Downstream Cluster
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-nq81ol-MuiInputBase-root-MuiOutlinedInput-root"
+      >
+        <input
+          aria-invalid="false"
+          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1tmw4j-MuiInputBase-input-MuiOutlinedInput-input"
+          id="mui-1"
+          name="downstreamCluster"
+          type="text"
+          value=""
+        />
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Downstream Cluster
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1wvyz87-MuiFormControl-root-MuiTextField-root"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary css-1eup1al-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+        for="mui-2"
+        id="mui-2-label"
+      >
+        Upstream Cluster
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-nq81ol-MuiInputBase-root-MuiOutlinedInput-root"
+      >
+        <input
+          aria-invalid="false"
+          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1tmw4j-MuiInputBase-input-MuiOutlinedInput-input"
+          id="mui-2"
+          name="upstreamCluster"
+          type="text"
+          value=""
+        />
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Upstream Cluster
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1wvyz87-MuiFormControl-root-MuiTextField-root"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled css-1eup1al-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+        for="mui-3"
+        id="mui-3-label"
+      >
+        Percentage of Requests Served by All Hosts
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-nq81ol-MuiInputBase-root-MuiOutlinedInput-root"
+      >
+        <input
+          aria-invalid="false"
+          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1tmw4j-MuiInputBase-input-MuiOutlinedInput-input"
+          id="mui-3"
+          name="requestsPercentage"
+          type="number"
+          value="0"
+        />
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Percentage of Requests Served by All Hosts
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <h3
+      style="text-align: center;"
+    >
+      Faults
+    </h3>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth css-q8hpuo-MuiFormControl-root"
+      id="faultType"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled css-re9ma3-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+      >
+        Fault Type
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl css-mzhcmf-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+      >
+        <div
+          aria-expanded="false"
+          aria-haspopup="listbox"
+          aria-labelledby="faultType-select"
+          class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input css-7atx2b-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+          id="faultType-select"
+          role="button"
+          tabindex="0"
+        >
+          Abort
+        </div>
+        <input
+          aria-hidden="true"
+          class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+          tabindex="-1"
+          value="Abort"
+        />
+        <div
+          class="MuiSelect-icon MuiSelect-iconOutlined css-11bgdin-MuiSelect-icon"
+        >
+          <svg
+            aria-hidden="true"
+            class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1pwosc9-MuiSvgIcon-root"
+            data-testid="ExpandMoreIcon"
+            focusable="false"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"
+            />
+          </svg>
+        </div>
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Fault Type
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1wvyz87-MuiFormControl-root-MuiTextField-root"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary css-1eup1al-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+        for="mui-4"
+        id="mui-4-label"
+      >
+        HTTP Status
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-nq81ol-MuiInputBase-root-MuiOutlinedInput-root"
+      >
+        <input
+          aria-invalid="false"
+          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1tmw4j-MuiInputBase-input-MuiOutlinedInput-input"
+          id="mui-4"
+          name="httpStatus"
+          type="number"
+          value=""
+        />
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              HTTP Status
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiGrid-root MuiGrid-container css-mgb5sa-MuiGrid-root"
+      data-border="top"
+    >
+      <button
+        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-disableElevation css-ofve1n-MuiButtonBase-root-MuiButton-root"
+        palette="[object Object]"
+        tabindex="0"
+        type="button"
+      >
+        Cancel
+      </button>
+      <button
+        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-disableElevation css-61rao6-MuiButtonBase-root-MuiButton-root"
+        palette="[object Object]"
+        tabindex="0"
+        type="submit"
+      >
+        Start
+      </button>
+    </div>
+  </form>
+</DocumentFragment>
 `;
 
-exports[`Start Experiment workflow renders correctly with host percentage based faults and upstream cluster type selecion enabled 1`] = `
-"<Styled(div)>
-  <h3 style={{...}}>
-    Cluster Pair
-  </h3>
-  <TextField name=\\"downstreamCluster\\" label=\\"Downstream Cluster\\" defaultValue={[undefined]} type=\\"text\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <TextField name=\\"upstreamCluster\\" label=\\"Upstream Cluster\\" defaultValue={[undefined]} type=\\"text\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <RadioGroup name=\\"upstreamClusterType\\" label=\\"Upstream Cluster Type\\" disabled={false} options={{...}} defaultOption={0} onChange={[Function: onChange]} />
-  <h3 style={{...}}>
-    Targeting
-  </h3>
-  <Select name=\\"targetType\\" label=\\"Target Type\\" options={{...}} defaultOption={0} onChange={[Function: onChange]} />
-  <TextField name=\\"requestsPercentage\\" label=\\"Percentage of Requests Served by All Hosts\\" defaultValue=\\"0\\" type=\\"number\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <h3 style={{...}}>
-    Faults
-  </h3>
-  <Select name=\\"faultType\\" label=\\"Fault Type\\" options={{...}} defaultOption={0} onChange={[Function: onChange]} />
-  <TextField name=\\"httpStatus\\" label=\\"HTTP Status\\" defaultValue={[undefined]} type=\\"number\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-</Styled(div)>"
-`;
-
-exports[`Start Experiment workflow renders correctly with host percentage based faults enabled 1`] = `
-"<Styled(div)>
-  <h3 style={{...}}>
-    Cluster Pair
-  </h3>
-  <TextField name=\\"downstreamCluster\\" label=\\"Downstream Cluster\\" defaultValue={[undefined]} type=\\"text\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <TextField name=\\"upstreamCluster\\" label=\\"Upstream Cluster\\" defaultValue={[undefined]} type=\\"text\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <h3 style={{...}}>
-    Targeting
-  </h3>
-  <TextField name=\\"requestsPercentage\\" label=\\"Percentage of Requests Served by All Hosts\\" defaultValue=\\"0\\" type=\\"number\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <h3 style={{...}}>
-    Faults
-  </h3>
-  <Select name=\\"faultType\\" label=\\"Fault Type\\" options={{...}} defaultOption={0} onChange={[Function: onChange]} />
-  <TextField name=\\"httpStatus\\" label=\\"HTTP Status\\" defaultValue={[undefined]} type=\\"number\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-</Styled(div)>"
-`;
-
-exports[`Start Experiment workflow renders correctly with upstream cluster type selection enabled 1`] = `
-"<Styled(div)>
-  <h3 style={{...}}>
-    Cluster Pair
-  </h3>
-  <TextField name=\\"downstreamCluster\\" label=\\"Downstream Cluster\\" defaultValue={[undefined]} type=\\"text\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <TextField name=\\"upstreamCluster\\" label=\\"Upstream Cluster\\" defaultValue={[undefined]} type=\\"text\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <RadioGroup name=\\"upstreamClusterType\\" label=\\"Upstream Cluster Type\\" disabled={false} options={{...}} defaultOption={0} onChange={[Function: onChange]} />
-  <h3 style={{...}}>
-    Targeting
-  </h3>
-  <TextField name=\\"requestsPercentage\\" label=\\"Percentage of Requests Served by All Hosts\\" defaultValue=\\"0\\" type=\\"number\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-  <h3 style={{...}}>
-    Faults
-  </h3>
-  <Select name=\\"faultType\\" label=\\"Fault Type\\" options={{...}} defaultOption={0} onChange={[Function: onChange]} />
-  <TextField name=\\"httpStatus\\" label=\\"HTTP Status\\" defaultValue={[undefined]} type=\\"number\\" onChange={[Function: onChange]} inputRef={[Function: register]} error={false} helperText=\\"\\" />
-</Styled(div)>"
+exports[`renders correctly with upstream cluster type selection enabled 1`] = `
+<DocumentFragment>
+  <form
+    class="css-1dkqlr9"
+  >
+    <h3
+      style="text-align: center;"
+    >
+      Cluster Pair
+    </h3>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1wvyz87-MuiFormControl-root-MuiTextField-root"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary css-1eup1al-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+        for="mui-5"
+        id="mui-5-label"
+      >
+        Downstream Cluster
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-nq81ol-MuiInputBase-root-MuiOutlinedInput-root"
+      >
+        <input
+          aria-invalid="false"
+          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1tmw4j-MuiInputBase-input-MuiOutlinedInput-input"
+          id="mui-5"
+          name="downstreamCluster"
+          type="text"
+          value=""
+        />
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Downstream Cluster
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1wvyz87-MuiFormControl-root-MuiTextField-root"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary css-1eup1al-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+        for="mui-6"
+        id="mui-6-label"
+      >
+        Upstream Cluster
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-nq81ol-MuiInputBase-root-MuiOutlinedInput-root"
+      >
+        <input
+          aria-invalid="false"
+          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1tmw4j-MuiInputBase-input-MuiOutlinedInput-input"
+          id="mui-6"
+          name="upstreamCluster"
+          type="text"
+          value=""
+        />
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Upstream Cluster
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth css-q8hpuo-MuiFormControl-root"
+      id="upstreamClusterType"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled css-re9ma3-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+      >
+        Upstream Cluster Type
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl css-mzhcmf-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+      >
+        <div
+          aria-expanded="false"
+          aria-haspopup="listbox"
+          aria-labelledby="upstreamClusterType-select"
+          class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input css-7atx2b-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+          id="upstreamClusterType-select"
+          role="button"
+          tabindex="0"
+        >
+          Internal
+        </div>
+        <input
+          aria-hidden="true"
+          class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+          tabindex="-1"
+          value="internal"
+        />
+        <div
+          class="MuiSelect-icon MuiSelect-iconOutlined css-11bgdin-MuiSelect-icon"
+        >
+          <svg
+            aria-hidden="true"
+            class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1pwosc9-MuiSvgIcon-root"
+            data-testid="ExpandMoreIcon"
+            focusable="false"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"
+            />
+          </svg>
+        </div>
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Upstream Cluster Type
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1wvyz87-MuiFormControl-root-MuiTextField-root"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled css-1eup1al-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+        for="mui-7"
+        id="mui-7-label"
+      >
+        Percentage of Requests Served by All Hosts
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-nq81ol-MuiInputBase-root-MuiOutlinedInput-root"
+      >
+        <input
+          aria-invalid="false"
+          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1tmw4j-MuiInputBase-input-MuiOutlinedInput-input"
+          id="mui-7"
+          name="requestsPercentage"
+          type="number"
+          value="0"
+        />
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Percentage of Requests Served by All Hosts
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <h3
+      style="text-align: center;"
+    >
+      Faults
+    </h3>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth css-q8hpuo-MuiFormControl-root"
+      id="faultType"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled css-re9ma3-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+      >
+        Fault Type
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl css-mzhcmf-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+      >
+        <div
+          aria-expanded="false"
+          aria-haspopup="listbox"
+          aria-labelledby="faultType-select"
+          class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input css-7atx2b-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+          id="faultType-select"
+          role="button"
+          tabindex="0"
+        >
+          Abort
+        </div>
+        <input
+          aria-hidden="true"
+          class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+          tabindex="-1"
+          value="Abort"
+        />
+        <div
+          class="MuiSelect-icon MuiSelect-iconOutlined css-11bgdin-MuiSelect-icon"
+        >
+          <svg
+            aria-hidden="true"
+            class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1pwosc9-MuiSvgIcon-root"
+            data-testid="ExpandMoreIcon"
+            focusable="false"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"
+            />
+          </svg>
+        </div>
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              Fault Type
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1wvyz87-MuiFormControl-root-MuiTextField-root"
+    >
+      <label
+        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary css-1eup1al-MuiFormLabel-root-MuiInputLabel-root"
+        data-shrink="true"
+        for="mui-8"
+        id="mui-8-label"
+      >
+        HTTP Status
+      </label>
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-nq81ol-MuiInputBase-root-MuiOutlinedInput-root"
+      >
+        <input
+          aria-invalid="false"
+          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1tmw4j-MuiInputBase-input-MuiOutlinedInput-input"
+          id="mui-8"
+          name="httpStatus"
+          type="number"
+          value=""
+        />
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-t08j42"
+          >
+            <span>
+              HTTP Status
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+    <div
+      class="MuiGrid-root MuiGrid-container css-mgb5sa-MuiGrid-root"
+      data-border="top"
+    >
+      <button
+        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-disableElevation css-ofve1n-MuiButtonBase-root-MuiButton-root"
+        palette="[object Object]"
+        tabindex="0"
+        type="button"
+      >
+        Cancel
+      </button>
+      <button
+        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-disableElevation css-61rao6-MuiButtonBase-root-MuiButton-root"
+        palette="[object Object]"
+        tabindex="0"
+        type="submit"
+      >
+        Start
+      </button>
+    </div>
+  </form>
+</DocumentFragment>
 `;

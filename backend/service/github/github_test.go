@@ -2,26 +2,38 @@ package github
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
-	githubv3 "github.com/google/go-github/v35/github"
+	"github.com/dgrijalva/jwt-go"
+	githubv3 "github.com/google/go-github/v54/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally/v4"
+	"go.uber.org/zap"
 
+	githubconfigv1 "github.com/lyft/clutch/backend/api/config/service/github/v1"
 	githubv1 "github.com/lyft/clutch/backend/api/sourcecontrol/github/v1"
 	sourcecontrolv1 "github.com/lyft/clutch/backend/api/sourcecontrol/v1"
+	"github.com/lyft/clutch/backend/service/authn"
 )
 
 const problem = "we've had a problem"
 
-var (
-	timestamp = time.Unix(1569010072, 0)
-)
+var timestamp = time.Unix(1569010072, 0)
+
+func intPtr(i int) *int {
+	return &i
+}
 
 type getfileMock struct {
 	v4client
@@ -29,6 +41,14 @@ type getfileMock struct {
 	queryError        bool
 	refID, objID      string
 	truncated, binary bool
+}
+
+type getdirectoryMock struct {
+	v4client
+
+	queryError   bool
+	refID, objID string
+	entries      []*Entry
 }
 
 func (g *getfileMock) Query(ctx context.Context, query interface{}, variables map[string]interface{}) error {
@@ -62,6 +82,126 @@ func (g *getfileMock) Query(ctx context.Context, query interface{}, variables ma
 		}{githubv4.DateTime{Time: timestamp}, "otherSHA"},
 	)
 	return nil
+}
+
+func (g *getdirectoryMock) Query(ctx context.Context, query interface{}, variables map[string]interface{}) error {
+	q, ok := query.(*getDirectoryQuery)
+	if !ok {
+		panic("not a query")
+	}
+
+	if g.queryError {
+		return errors.New(problem)
+	}
+
+	if g.refID != "" {
+		q.Repository.Ref.Commit.ID = g.refID
+		q.Repository.Ref.Commit.OID = githubv4.GitObjectID(g.refID)
+	}
+	if g.objID != "" {
+		q.Repository.Object.Tree.Entries = append(
+			q.Repository.Object.Tree.Entries,
+			struct {
+				Name githubv4.String
+				Type githubv4.String
+				OID  githubv4.GitObjectID
+			}{Name: githubv4.String(g.entries[0].Name), Type: githubv4.String(g.entries[0].Type), OID: githubv4.GitObjectID(g.entries[0].SHA)})
+	}
+
+	q.Repository.Ref.Commit.History.Nodes = append(
+		q.Repository.Ref.Commit.History.Nodes,
+		struct {
+			CommittedDate githubv4.DateTime
+			OID           githubv4.GitObjectID
+		}{githubv4.DateTime{Time: timestamp}, "otherSHA"},
+	)
+
+	return nil
+}
+
+type mockRoundTripper struct {
+	http.RoundTripper
+	resp *http.Response
+	err  error
+}
+
+func (m *mockRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	if m.err != nil {
+		return m.resp, m.err
+	}
+	return m.resp, nil
+}
+
+func TestRoundTrip(t *testing.T) {
+	tests := []struct {
+		name          string
+		headerName    string
+		headerValue   string
+		nilResp       bool
+		respErr       error
+		expectedGauge float64
+	}{
+		{
+			name:          "gauges rate limit remaining",
+			headerName:    "X-RateLimit-Remaining",
+			headerValue:   "10",
+			expectedGauge: 10,
+		},
+		{
+			name:        "only updates gauge when header present",
+			headerName:  "x-unrelated-header",
+			headerValue: "foobar",
+		},
+		{
+			name:        "only updates gauge when header value valid type",
+			headerName:  "X-RateLimit-Remaining",
+			headerValue: "non-int",
+		},
+		{
+			name:    "round trip missing response update gauge",
+			respErr: errors.New("upstream error"),
+		},
+		{
+			name:          "round trip error with response updates gauge",
+			respErr:       errors.New("upstream error"),
+			headerName:    "X-RateLimit-Remaining",
+			headerValue:   "10",
+			expectedGauge: 10,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scope := tally.NewTestScope("", nil)
+			h := http.Header{}
+			h.Set(tt.headerName, tt.headerValue)
+			r := &http.Response{Header: h}
+			if tt.nilResp {
+				r = nil
+			}
+			mockRT := &mockRoundTripper{resp: r, err: tt.respErr}
+			st := &StatsRoundTripper{
+				Wrapped: mockRT,
+				scope:   scope,
+			}
+
+			resp, err := st.RoundTrip(&http.Request{})
+
+			assert.Equal(t, r, resp)
+			if tt.respErr == nil {
+				assert.Nil(t, err)
+			}
+
+			g := scope.Snapshot().Gauges()["rate_limit_remaining+"]
+			if tt.expectedGauge != 0 {
+				assert.NotNil(t, g)
+				assert.Equal(t, tt.expectedGauge, g.Value())
+			} else {
+				assert.Nil(t, g)
+			}
+		})
+	}
 }
 
 var getFileTests = []struct {
@@ -102,7 +242,6 @@ var getFileTests = []struct {
 
 func TestGetFile(t *testing.T) {
 	for _, tt := range getFileTests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			a := assert.New(t)
@@ -127,10 +266,72 @@ func TestGetFile(t *testing.T) {
 				return
 			}
 
-			contents, _ := ioutil.ReadAll(f.Contents)
+			contents, _ := io.ReadAll(f.Contents)
 			a.Equal("text", string(contents))
 			a.Equal("data/foo", f.Path)
 			a.Equal("abcdef12345", f.SHA)
+			a.Equal("otherSHA", f.LastModifiedSHA)
+			a.Equal(timestamp, f.LastModifiedTime)
+		})
+	}
+}
+
+var directoryEntries = []*Entry{{Name: "foo", Type: "blob", SHA: "abcdef12345"}}
+
+var getDirectoryTests = []struct {
+	name    string
+	v4      getdirectoryMock
+	errText string
+}{
+	{
+		name:    "queryError",
+		v4:      getdirectoryMock{queryError: true},
+		errText: problem,
+	},
+	{
+		name:    "noRef",
+		v4:      getdirectoryMock{},
+		errText: "ref not found",
+	},
+	{
+		name:    "noObject",
+		v4:      getdirectoryMock{refID: "abcdef12345"},
+		errText: "directory not found",
+	},
+	{
+		name: "happyPath",
+		v4:   getdirectoryMock{refID: "abcdef12345", objID: "abcdef12345", entries: directoryEntries},
+	},
+}
+
+func TestGetDirectory(t *testing.T) {
+	for _, tt := range getDirectoryTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			a := assert.New(t)
+
+			s := &svc{graphQL: &tt.v4}
+			f, err := s.GetDirectory(context.Background(),
+				&RemoteRef{
+					RepoOwner: "owner",
+					RepoName:  "myRepo",
+					Ref:       "master",
+				},
+				"data/foo",
+			)
+
+			if tt.errText != "" {
+				a.Error(err)
+				a.Contains(err.Error(), tt.errText)
+				return
+			}
+			if err != nil {
+				a.FailNow("unexpected error")
+				return
+			}
+
+			a.Equal("data/foo", f.Path)
+			a.Equal(directoryEntries, f.Entries)
 			a.Equal("otherSHA", f.LastModifiedSHA)
 			a.Equal(timestamp, f.LastModifiedTime)
 		})
@@ -166,16 +367,24 @@ func (m *mockRepositories) GetContents(_ context.Context, _, _, _ string, _ *git
 	return &githubv3.RepositoryContent{}, nil, nil, nil
 }
 
-func (m *mockRepositories) CompareCommits(ctx context.Context, owner, repo, base, head string) (*githubv3.CommitsComparison, *githubv3.Response, error) {
+func (m *mockRepositories) CompareCommits(ctx context.Context, owner, repo, base, head string, opts *githubv3.ListOptions) (*githubv3.CommitsComparison, *githubv3.Response, error) {
 	if m.generalError {
 		return nil, nil, errors.New(problem)
 	}
 	returnstr := "behind"
-	return &githubv3.CommitsComparison{Status: &returnstr}, nil, nil
+	shaStr := "astdfsaohecra"
+	return &githubv3.CommitsComparison{
+		Status: &returnstr,
+		Commits: []*githubv3.RepositoryCommit{
+			{SHA: &shaStr},
+		},
+	}, nil, nil
 }
 
-func (m *mockRepositories) GetCommit(ctx context.Context, owner, repo, sha string) (*githubv3.RepositoryCommit, *githubv3.Response, error) {
+func (m *mockRepositories) GetCommit(ctx context.Context, owner, repo, sha string, opts *githubv3.ListOptions) (*githubv3.RepositoryCommit, *githubv3.Response, error) {
 	file := "testfile.go"
+	message := "committing some changes (#1)"
+	authorLogin := "foobar"
 	if m.generalError {
 		return &githubv3.RepositoryCommit{}, &githubv3.Response{}, errors.New(problem)
 	}
@@ -185,7 +394,25 @@ func (m *mockRepositories) GetCommit(ctx context.Context, owner, repo, sha strin
 				Filename: &file,
 			},
 		},
-	}, &githubv3.Response{}, nil
+		Commit: &githubv3.Commit{
+			Message: &message,
+			Author: &githubv3.CommitAuthor{
+				Login: &authorLogin,
+			},
+		},
+	}, nil, nil
+}
+
+func (m *mockRepositories) DeleteFile(ctx context.Context, owner, repo, path string, opts *githubv3.RepositoryContentFileOptions) (*githubv3.RepositoryContentResponse, *githubv3.Response, error) {
+	if m.generalError {
+		return &githubv3.RepositoryContentResponse{}, &githubv3.Response{}, errors.New(problem)
+	}
+	return &githubv3.RepositoryContentResponse{
+
+		Commit: githubv3.Commit{
+			SHA: githubv3.String("2aae6c35c94fcfb415dbe95f408b9ce91ee846ed"),
+		},
+	}, nil, nil
 }
 
 type mockUsers struct {
@@ -237,7 +464,6 @@ var createRepoTests = []struct {
 
 func TestCreateRepository(t *testing.T) {
 	for idx, tt := range createRepoTests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 
@@ -282,7 +508,6 @@ var getUserTests = []struct {
 
 func TestGetUser(t *testing.T) {
 	for idx, tt := range getUserTests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 
@@ -302,19 +527,19 @@ func TestGetUser(t *testing.T) {
 var compareCommitsTests = []struct {
 	name         string
 	errorText    string
-	status       githubv1.CommitCompareStatus
+	status       string
 	generalError bool
 	mockRepo     *mockRepositories
 }{
 	{
 		name:         "v3 error",
 		generalError: true,
-		errorText:    "Could not get compare status",
+		errorText:    "could not get comparison",
 		mockRepo:     &mockRepositories{generalError: true},
 	},
 	{
 		name:     "happy path",
-		status:   githubv1.CommitCompareStatus_BEHIND,
+		status:   "behind",
 		mockRepo: &mockRepositories{},
 	},
 }
@@ -323,7 +548,6 @@ func TestCompareCommits(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range compareCommitsTests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			a := assert.New(t)
@@ -350,16 +574,23 @@ func TestCompareCommits(t *testing.T) {
 				return
 			}
 			a.Equal(comp.GetStatus(), tt.status)
+			a.NotNil(comp.Commits)
 			a.Nil(err)
 		})
 	}
 }
 
 var getCommitsTests = []struct {
-	name      string
-	errorText string
-	mockRepo  *mockRepositories
-	file      string
+	name            string
+	errorText       string
+	mockRepo        *mockRepositories
+	file            string
+	message         string
+	authorLogin     string
+	authorAvatarURL string
+	authorID        int64
+	sha             string
+	parentRef       string
 }{
 	{
 		name:      "v3 error",
@@ -367,16 +598,20 @@ var getCommitsTests = []struct {
 		errorText: "we've had a problem",
 	},
 	{
-		name:     "happy path",
-		mockRepo: &mockRepositories{},
-		file:     "testfile.go",
+		name:            "happy path",
+		mockRepo:        &mockRepositories{},
+		file:            "testfile.go",
+		message:         "committing some changes (#1)",
+		authorAvatarURL: "https://foo.bar/baz.png",
+		authorID:        1234,
+		sha:             "test",
+		parentRef:       "test",
 	},
 }
 
 func TestGetCommit(t *testing.T) {
 	t.Parallel()
 	for _, tt := range getCommitsTests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			a := assert.New(t)
@@ -402,6 +637,17 @@ func TestGetCommit(t *testing.T) {
 				return
 			}
 			a.Equal(tt.file, *commit.Files[0].Filename)
+			a.Equal(tt.message, commit.Message)
+			if commit.Author != nil {
+				a.Equal(tt.authorAvatarURL, *commit.Author.AvatarURL)
+				a.Equal(tt.authorID, *commit.Author.ID)
+			}
+			if commit.SHA != "" {
+				a.Equal(tt.sha, commit.SHA)
+			}
+			if commit.ParentRef != "" {
+				a.Equal(tt.parentRef, commit.ParentRef)
+			}
 			a.Nil(err)
 		})
 	}
@@ -471,7 +717,6 @@ var getOrganizationTests = []struct {
 
 func TestGetOrganization(t *testing.T) {
 	for idx, tt := range getOrganizationTests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 
@@ -514,7 +759,6 @@ var listOrganizationsTests = []struct {
 
 func TestListOrganizations(t *testing.T) {
 	for idx, tt := range listOrganizationsTests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 
@@ -560,7 +804,6 @@ var getOrgMembershipTests = []struct {
 
 func TestGetOrgMembership(t *testing.T) {
 	for idx, tt := range getOrgMembershipTests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 
@@ -617,7 +860,6 @@ var getDefaultBranchTests = []struct {
 func TestGetRepository(t *testing.T) {
 	t.Parallel()
 	for _, tt := range getDefaultBranchTests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			a := assert.New(t)
@@ -629,7 +871,6 @@ func TestGetRepository(t *testing.T) {
 					RepoName:  "myRepo",
 				},
 			)
-
 			if err != nil {
 				a.FailNowf("unexpected error: %s", err.Error())
 				return
@@ -641,4 +882,312 @@ func TestGetRepository(t *testing.T) {
 			a.Nil(err)
 		})
 	}
+}
+
+type mockPullRequests struct {
+	generalError bool
+
+	actualNumber     int
+	actualHTMLURL    string
+	actualBranchName string
+}
+
+// Dummy mock of Create API so mockPullRequests implements v3pullrequests
+func (m *mockPullRequests) Create(ctx context.Context, owner string, repo string, pull *githubv3.NewPullRequest) (*githubv3.PullRequest, *githubv3.Response, error) {
+	return &githubv3.PullRequest{}, &githubv3.Response{}, nil
+}
+
+func (m *mockPullRequests) Get(ctx context.Context, owner, repo string, number int) (*githubv3.PullRequest, *githubv3.Response, error) {
+	if m.generalError == true {
+		return nil, nil, errors.New(problem)
+	}
+	return &githubv3.PullRequest{}, &githubv3.Response{}, nil
+}
+
+// Mock of ListPullRequestsWithCommit API
+func (m *mockPullRequests) ListPullRequestsWithCommit(ctx context.Context, owner, repo, sha string, opts *githubv3.ListOptions) ([]*githubv3.PullRequest, *githubv3.Response, error) {
+	if m.generalError {
+		return nil, nil, errors.New(problem)
+	}
+
+	m.actualNumber = 1347
+	m.actualHTMLURL = fmt.Sprintf("https://github.com/%s/%s/pull/%s", owner, repo, strconv.Itoa(m.actualNumber))
+	m.actualBranchName = "my-branch"
+
+	return []*githubv3.PullRequest{
+		{
+			Number:  intPtr(m.actualNumber),
+			HTMLURL: strPtr(m.actualHTMLURL),
+			Head: &githubv3.PullRequestBranch{
+				Ref: strPtr(m.actualBranchName),
+				SHA: strPtr(sha),
+				Repo: &githubv3.Repository{
+					Name: strPtr(repo),
+				},
+				User: &githubv3.User{
+					Login: strPtr("octocat"),
+				},
+			},
+		},
+	}, nil, nil
+}
+
+var listPullRequestsWithCommitTests = []struct {
+	name        string
+	errorText   string
+	mockPullReq *mockPullRequests
+	repoOwner   string
+	repoName    string
+	ref         string
+	sha         string
+}{
+	{
+		name:        "happy path",
+		mockPullReq: &mockPullRequests{},
+		repoOwner:   "my-org",
+		repoName:    "my-repo",
+		ref:         "my-branch",
+		sha:         "asdf12345",
+	},
+	{
+		name:        "v3 client error",
+		mockPullReq: &mockPullRequests{generalError: true},
+		errorText:   "we've had a problem",
+		repoOwner:   "my-org",
+		repoName:    "my-repo",
+		ref:         "my-branch",
+		sha:         "asdf12345",
+	},
+}
+
+func TestListPullRequestsWithCommit(t *testing.T) {
+	for _, tt := range listPullRequestsWithCommitTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := &svc{rest: v3client{
+				PullRequests: tt.mockPullReq,
+			}}
+
+			resp, err := s.ListPullRequestsWithCommit(
+				context.Background(),
+				&RemoteRef{
+					RepoOwner: tt.repoOwner,
+					RepoName:  tt.repoName,
+					Ref:       tt.ref,
+				},
+				tt.sha, nil)
+
+			if tt.errorText != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorText)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(resp))
+				assert.Equal(t, tt.mockPullReq.actualNumber, resp[0].Number)
+				assert.Equal(t, tt.mockPullReq.actualHTMLURL, resp[0].HTMLURL)
+				assert.Equal(t, tt.mockPullReq.actualBranchName, resp[0].BranchName)
+			}
+		})
+	}
+}
+
+// Mock of ListReviews API
+func (m *mockPullRequests) ListReviews(ctx context.Context, owner, repo string, number int, opts *githubv3.ListOptions) ([]*githubv3.PullRequestReview, *githubv3.Response, error) {
+	if m.generalError {
+		return nil, nil, errors.New(problem)
+	}
+
+	m.actualNumber = 3256
+	m.actualHTMLURL = fmt.Sprintf("https://github.com/%s/%s/pull/%s", owner, repo, strconv.Itoa(m.actualNumber))
+
+	return []*githubv3.PullRequestReview{
+		{
+			HTMLURL: strPtr(m.actualHTMLURL),
+		},
+	}, nil, nil
+}
+
+var getPullRequestTests = []struct {
+	name        string
+	errorText   string
+	mockPullReq *mockPullRequests
+	repoOwner   string
+	repoName    string
+	prNumber    int
+}{
+	{
+		name:        "happy path",
+		mockPullReq: &mockPullRequests{},
+		repoOwner:   "my-org",
+		repoName:    "my-repo",
+		prNumber:    4242,
+	},
+	{
+		name:        "v3 client error",
+		mockPullReq: &mockPullRequests{generalError: true},
+		errorText:   "we've had a problem",
+		repoOwner:   "my-org",
+		repoName:    "my-repo",
+		prNumber:    4242,
+	},
+}
+
+func TestGetPullRequest(t *testing.T) {
+	for _, tt := range getPullRequestTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := &svc{rest: v3client{
+				PullRequests: tt.mockPullReq,
+			}}
+
+			resp, err := s.GetPullRequest(
+				context.Background(),
+				tt.repoOwner,
+				tt.repoName,
+				tt.prNumber)
+
+			if tt.errorText != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorText)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.mockPullReq.actualNumber, resp.GetNumber())
+			}
+		})
+	}
+}
+
+var deleteFileTests = []struct {
+	name          string
+	errorText     string
+	mockRepo      *mockRepositories
+	repoOwner     string
+	repoName      string
+	branchName    string
+	filePath      string
+	fileSha       string
+	commitMessage string
+	commitSha     string
+}{
+	{
+		name:       "happy path",
+		mockRepo:   &mockRepositories{},
+		repoOwner:  "my-org",
+		repoName:   "my-repo",
+		branchName: "my-branch",
+		commitSha:  "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+	},
+	{
+		name:       "v3 client error",
+		mockRepo:   &mockRepositories{generalError: true},
+		errorText:  "we've had a problem",
+		repoOwner:  "my-org",
+		repoName:   "my-repo",
+		branchName: "my-branch",
+		commitSha:  "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+	},
+}
+
+func TestDeleteFile(t *testing.T) {
+	for _, tt := range deleteFileTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := &svc{rest: v3client{
+				Repositories: tt.mockRepo,
+			}}
+
+			resp, err := s.
+				DeleteFile(
+					context.Background(),
+					&RemoteRef{
+						RepoOwner: tt.repoOwner,
+						RepoName:  tt.repoName,
+						Ref:       tt.branchName,
+					}, tt.filePath, tt.fileSha, tt.commitMessage)
+
+			if tt.errorText != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorText)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.commitSha, resp.GetSHA())
+			}
+		})
+	}
+}
+
+func TestNewService(t *testing.T) {
+	cfg := &githubconfigv1.Config{}
+	_, err := newService(cfg, tally.NoopScope, zap.NewNop())
+	assert.Error(t, err)
+
+	cfg.Auth = &githubconfigv1.Config_AccessToken{AccessToken: "aaa"}
+	s, err := newService(cfg, tally.NoopScope, zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, s)
+
+	assert.Nil(t, s.(*svc).appTransport)
+	assert.Equal(t, s.(*svc).personalAccessToken, "aaa")
+
+	pk, err := rsa.GenerateKey(rand.Reader, 2048)
+	assert.NoError(t, err)
+
+	kk, _ := x509.MarshalPKCS8PrivateKey(pk)
+
+	cfg.Auth = &githubconfigv1.Config_AppConfig{
+		AppConfig: &githubconfigv1.AppConfig{
+			AppId:          123456,
+			InstallationId: 789,
+			Pem: &githubconfigv1.AppConfig_KeyPem{
+				KeyPem: string(pem.EncodeToMemory(&pem.Block{Type: "RSA_PRIVATE_KEY", Bytes: kk})),
+			},
+		},
+	}
+	s, err = newService(cfg, tally.NoopScope, zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, s)
+
+	assert.Empty(t, s.(*svc).personalAccessToken)
+	assert.NotNil(t, s.(*svc).appTransport)
+}
+
+func TestCommitAuthorFromContext(t *testing.T) {
+	ctx := context.Background()
+	ctx = authn.ContextWithAnonymousClaims(ctx)
+	commitTime := time.Now()
+
+	result := commitOptionsFromClaims(ctx, commitTime)
+	assert.Equal(t, "Anonymous User via Clutch", result.Author.Name)
+	assert.Equal(t, "", result.Author.Email)
+	assert.Equal(t, commitTime, result.Author.When)
+	assert.Equal(t, true, result.All)
+
+	ctx = authn.ContextWithClaims(ctx, &authn.Claims{
+		StandardClaims: &jwt.StandardClaims{
+			Subject: "daniel@example.com",
+		},
+	})
+
+	commitTime = time.Now()
+	result = commitOptionsFromClaims(ctx, commitTime)
+	assert.Equal(t, "daniel@example.com via Clutch", result.Author.Name)
+	assert.Equal(t, "daniel@example.com", result.Author.Email)
+	assert.Equal(t, commitTime, result.Author.When)
+	assert.Equal(t, true, result.All)
+
+	ctx = authn.ContextWithClaims(ctx, &authn.Claims{
+		StandardClaims: &jwt.StandardClaims{
+			Subject: "daniel123",
+		},
+	})
+
+	commitTime = time.Now()
+	result = commitOptionsFromClaims(ctx, commitTime)
+	assert.Equal(t, "daniel123 via Clutch", result.Author.Name)
+	assert.Equal(t, "", result.Author.Email)
+	assert.Equal(t, commitTime, result.Author.When)
+	assert.Equal(t, true, result.All)
 }

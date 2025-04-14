@@ -57,5 +57,47 @@ module.exports = {
         resolverType: "clutch.k8s.v1.HPA",
       },
     },
+    kubeDashboard: {
+      trending: true,
+    },
+    scaleResources: {
+      trending: true,
+      componentProps: {
+        resolverType: "clutch.k8s.v1.Deployment",
+      },
+    },
+    cordonNode: {
+      trending: true,
+      componentProps: {
+        resolverType: "clutch.k8s.v1.Node",
+      },
+    },
+    updateLiveness: {
+      trending: true,
+      componentProps: {
+        resolverType: "clutch.k8s.v1.Deployment",
+      },
+    },
+  },
+  "@clutch-sh/project-catalog": {
+    catalog: {
+      trending: false,
+      hideNav: true,
+    },
+    details: {
+      hideNav: true,
+    },
+    configLanding: {
+      hideNav: true,
+      componentProps: {
+        defaultRoute: "/",
+      },
+    },
+    configPage: {
+      hideNav: true,
+      componentProps: {
+        defaultRoute: "/",
+      },
+    },
   },
 };

@@ -5,7 +5,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -75,7 +75,6 @@ func TestConnString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.expected, func(t *testing.T) {
 			t.Parallel()
 

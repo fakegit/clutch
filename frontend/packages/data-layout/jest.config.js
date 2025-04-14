@@ -1,8 +1,11 @@
-const baseConfig = require("@clutch-sh/tools/jest.config.js");
+const baseConfig = require("@clutch-sh/tools/jest.config");
 
 module.exports = {
   ...baseConfig,
   coverageThreshold: {
     ...baseConfig.coverageThreshold,
+    ".": {
+      statements: "40",
+    },
   },
 };

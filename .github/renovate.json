@@ -16,38 +16,42 @@
   ],
   "commitMessagePrefix": "housekeeping:",
   "rebaseWhen": "conflicted",
-  "labels": [
-    "dependencies"
-  ],
+  "labels": ["dependencies"],
   "lockFileMaintenance": {
-    "enabled": true
+    "enabled": false
   },
   "packageRules": [
     {
+      "groupName": "eslint",
+      "matchPackagePatterns": ["^eslint"],
+      "schedule": ["every 2 week on monday"],
+      "stabilityDays": 14
+    },
+    {
+      "groupName": "unittest",
+      "matchPackagePatterns": ["^jest|^enzyme"],
+      "schedule": ["every 2 week on monday"],
+      "stabilityDays": 14
+    },
+    {
+      "matchDatasources": ["npm", "node"],
+      "schedule": ["every 2 week on monday"],
+      "stabilityDays": 14
+    },
+    {
       "extends": ["schedule:weekly"],
-      "matchPackageNames": [
-        "google.golang.org/genproto"
-      ],
-      "matchPackagePatterns": [
-        "^golang.org/x/",
-        "^github.com/aws/"
-      ]
+      "matchPackagePatterns": ["^github.com/aws/"]
+    },
+    {
+      "extends": ["schedule:monthly"],
+      "matchPackageNames": ["google.golang.org/genproto"],
+      "matchPackagePatterns": ["^golang.org/x/"]
     },
     {
       "enabled": false,
-      "matchPackagePatterns": [
-        "^github.com/cactus/go-statsd-client"
-      ]
+      "matchPackagePatterns": ["^github.com/cactus/go-statsd-client"]
     }
   ],
-  "postUpdateOptions": [
-    "gomodTidy"
-  ],
-  "yarnrc": "",
-  "ignoreDeps": [
-    "@date-io/core",
-    "babel-jest",
-    "eslint",
-    "jest"
-  ]
+  "postUpdateOptions": ["gomodTidy"],
+  "ignoreDeps": ["@date-io/core", "babel-jest"]
 }

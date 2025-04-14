@@ -1,22 +1,22 @@
 import React from "react";
 import styled from "@emotion/styled";
-import { Grid, Typography } from "@material-ui/core";
-import ThumbDownIcon from "@material-ui/icons/ThumbDown";
+import ThumbDownIcon from "@mui/icons-material/ThumbDown";
+import { Grid, Theme, Typography } from "@mui/material";
 
 const Container = styled(Grid)`
   minheight: 80vh;
 `;
 
-const IconContainer = styled(Grid)({
-  color: "#02acbe",
+const IconContainer = styled(Grid)(({ theme }: { theme: Theme }) => ({
+  color: theme.palette.brandColor,
   fontSize: "7rem",
-});
+}));
 
 const NotFound: React.FC<{}> = () => (
   <Container
     container
     direction="column"
-    justify="center"
+    justifyContent="center"
     alignItems="center"
     style={{ minHeight: "80vh" }}
   >

@@ -8,8 +8,8 @@ import "google/api/annotations.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "google/rpc/status.proto";
 import "validate/validate.proto";
-
 import "api/v1/annotations.proto";
 
 service K8sAPI {
@@ -43,6 +43,14 @@ service K8sAPI {
       body : "*"
     };
     option (clutch.api.v1.action).type = UPDATE;
+  }
+
+  rpc GetPodLogs(GetPodLogsRequest) returns (GetPodLogsResponse) {
+    option (google.api.http) = {
+      post : "/v1/k8s/getPodLogs"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
   }
 
   rpc ResizeHPA(ResizeHPARequest) returns (ResizeHPAResponse) {
@@ -101,6 +109,13 @@ service K8sAPI {
     option (clutch.api.v1.action).type = READ;
   }
 
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {
+    option (google.api.http) = {
+      post : "/v1/k8s/listServices"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
+  }
   rpc DeleteService(DeleteServiceRequest) returns (DeleteServiceResponse) {
     option (google.api.http) = {
       post : "/v1/k8s/deleteService"
@@ -189,6 +204,14 @@ service K8sAPI {
     option (clutch.api.v1.action).type = DELETE;
   }
 
+  rpc DescribeJob(DescribeJobRequest) returns (DescribeJobResponse) {
+    option (google.api.http) = {
+      post : "/v1/k8s/describeJob"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
+  }
+
   rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {
     option (google.api.http) = {
       post : "/v1/k8s/listJobs"
@@ -220,6 +243,56 @@ service K8sAPI {
     };
     option (clutch.api.v1.action).type = READ;
   }
+
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
+    option (google.api.http) = {
+      post : "/v1/k8s/listEvents"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
+  }
+
+  rpc DescribeNode(DescribeNodeRequest) returns (DescribeNodeResponse) {
+    option (google.api.http) = {
+      post : "/v1/k8s/describeNode"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
+  }
+
+  rpc UpdateNode(UpdateNodeRequest) returns (UpdateNodeResponse) {
+    option (google.api.http) = {
+      post : "/v1/k8s/updateNode"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = UPDATE;
+  }
+
+  rpc ListNamespaceEvents(ListNamespaceEventsRequest) returns (ListNamespaceEventsResponse) {
+    option (google.api.http) = {
+      post : "/v1/k8s/listNamespaceEvents"
+      body : "*"
+    };
+    option (clutch.api.v1.action).type = READ;
+  }
+}
+
+message ListNamespaceEventsRequest {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.k8s.v1.Namespace",
+    // requests for all events associated with a given namespace
+    pattern : "{cluster}/{namespace}"
+  };
+
+  string clientset = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string cluster = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string namespace = 3 [ (validate.rules).string = {min_bytes : 1} ];
+  repeated EventType types = 4;
+  // Note object kind is Pod, in the future may support nodes as well
+}
+
+message ListNamespaceEventsResponse {
+  repeated Event events = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DescribePodRequest {
@@ -351,6 +424,11 @@ message Pod {
   // the status of its containers.
   // ref: https://github.com/kubernetes/kubernetes/blob/master/pkg/printers/internalversion/printers.go#L761
   string status = 14;
+
+  // This is here as a workound since protobufjs currently has serialization
+  // issues for well-known types like google.protobuf.Timestamp
+  // Unix timestamp (milliseconds since Jan 01 1970)
+  int64 start_time_millis = 15;
 }
 
 message ListOptions {
@@ -378,7 +456,8 @@ message ListPodsRequest {
 message ListPodsResponse {
   option (clutch.api.v1.reference).fields = "pods";
 
-  repeated Pod pods = 1;
+  repeated Pod pods = 1 [ (clutch.api.v1.log) = false ];
+  repeated google.rpc.Status partial_failures = 2;
 }
 
 message DeletePodRequest {
@@ -422,6 +501,45 @@ message UpdatePodRequest {
 message UpdatePodResponse {
 }
 
+message GetPodLogsRequest {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.k8s.v1.Pod",
+    pattern : "{cluster}/{namespace}/{name}"
+  };
+
+  string clientset = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string cluster = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string namespace = 3 [ (validate.rules).string = {min_bytes : 1} ];
+  string name = 4 [ (validate.rules).string = {min_bytes : 1} ];
+
+  PodLogsOptions options = 5;
+}
+
+message PodLogsOptions {
+  // The container for which to stream logs. Defaults to only container if there is one container in the pod.
+  string container_name = 1;
+  // Return previous terminated container logs if true.
+  bool previous = 2;
+  // An RFC3339 timestamp from which to show logs, e.g. 2022-11-07T19:30:38.974187286Z. This can be retrieved directly
+  // from a previous API call.
+  string since_ts = 3;
+  // If set, the number of lines from the end of the logs to show. If not specified, logs are shown from the creation of
+  // the container or sinceTime.
+  int64 tail_num_lines = 4;
+}
+
+message GetPodLogsResponse {
+  option (clutch.api.v1.redacted) = true;
+
+  string latest_ts = 1;
+  repeated PodLogLine logs = 2;
+}
+
+message PodLogLine {
+  string ts = 1;
+  string s = 2;
+}
+
 message HPA {
   option (clutch.api.v1.id).patterns = {
     type_url : "clutch.k8s.v1.HPA",
@@ -460,6 +578,8 @@ message ResizeHPARequest {
     uint32 max = 2;
   }
   Sizing sizing = 5 [ (validate.rules).message = {required : true} ];
+
+  Sizing current_sizing = 6;
 }
 
 message ResizeHPAResponse {
@@ -478,6 +598,48 @@ message DeleteHPARequest {
 }
 
 message DeleteHPAResponse {
+}
+
+message ExecAction {
+  repeated string command = 1;
+}
+
+message HTTPGetAction {
+  string path = 1 [ (validate.rules).string.pattern = "^/.*$" ];
+  int32 port = 2 [ (validate.rules).int32 = {gte : 0, lte : 65535} ];
+  string host = 3 [ (validate.rules).string.hostname = true ];
+  string scheme = 4 [ (validate.rules).string.pattern = "^(http|https)$" ];
+  repeated HTTPHeader http_headers = 5;
+}
+
+message HTTPHeader {
+  optional string name = 1;
+  optional string value = 2;
+}
+
+message TCPSocketAction {
+  int32 port = 1 [ (validate.rules).int32 = {gte : 0, lte : 65535} ];
+  string host = 2 [ (validate.rules).string.hostname = true ];
+}
+
+message GRPCAction {
+  int32 port = 1 [ (validate.rules).int32 = {gte : 0, lte : 65535} ];
+  string service = 2 [ (validate.rules).string.pattern = "^$|^[a-zA-Z0-9.-]+$" ];
+}
+
+message Probe {
+  oneof handler {
+    ExecAction exec = 1;
+    HTTPGetAction http_get = 2;
+    TCPSocketAction tcp_socket = 3;
+    GRPCAction grpc = 4;
+  }
+  optional int32 initial_delay_seconds = 5;
+  optional int32 timeout_seconds = 6;
+  optional int32 period_seconds = 7;
+  optional int32 success_threshold = 8;
+  optional int32 failure_threshold = 9;
+  optional int64 termination_grace_period_seconds = 10;
 }
 
 message Deployment {
@@ -524,6 +686,32 @@ message Deployment {
     repeated Condition deployment_conditions = 6;
   }
   DeploymentStatus deployment_status = 6;
+
+  // This is a workound since protobufjs currently has serialization
+  // issues for well-known types like google.protobuf.Timestamp
+  // Unix timestamp (milliseconds since Jan 01 1970)
+  int64 creation_time_millis = 7;
+
+  message DeploymentSpec {
+    message PodTemplateSpec {
+      message PodSpec {
+        message Container {
+          string name = 1;
+          message ResourceRequirements {
+            map<string, string> limits = 1;
+            map<string, string> requests = 2;
+          }
+          ResourceRequirements resources = 2;
+          optional Probe liveness_probe = 3;
+          optional Probe readiness_probe = 4;
+        }
+        repeated Container containers = 1;
+      }
+      PodSpec spec = 1;
+    }
+    PodTemplateSpec template = 1;
+  }
+  DeploymentSpec deployment_spec = 8;
 }
 
 message DescribeDeploymentRequest {
@@ -541,7 +729,7 @@ message DescribeDeploymentRequest {
 message DescribeDeploymentResponse {
   option (clutch.api.v1.reference).fields = "deployment";
 
-  Deployment deployment = 1;
+  Deployment deployment = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message ListDeploymentsRequest {
@@ -560,7 +748,7 @@ message ListDeploymentsRequest {
 message ListDeploymentsResponse {
   option (clutch.api.v1.reference).fields = "deployments";
 
-  repeated Deployment deployments = 1;
+  repeated Deployment deployments = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message UpdateDeploymentRequest {
@@ -582,6 +770,23 @@ message UpdateDeploymentRequest {
   message Fields {
     map<string, string> labels = 1 [ (validate.rules).map.keys.string = {min_bytes : 1} ];
     map<string, string> annotations = 2 [ (validate.rules).map.keys.string = {min_bytes : 1} ];
+
+    message ContainerResources {
+      string container_name = 1;
+      message ResourceRequirements {
+        map<string, string> limits = 1;
+        map<string, string> requests = 2;
+      }
+      ResourceRequirements resources = 2;
+    }
+    repeated ContainerResources container_resources = 3;
+
+    message ContainerProbes {
+      string container_name = 1;
+      optional Probe liveness_probe = 2;
+      optional Probe readiness_probe = 3;
+    }
+    repeated ContainerProbes container_probes = 4;
   }
 
   Fields fields = 5 [ (validate.rules).message = {required : true} ];
@@ -617,6 +822,18 @@ message StatefulSet {
 
   map<string, string> labels = 4;
   map<string, string> annotations = 5;
+
+  message Status {
+    uint32 replicas = 1;
+    uint32 updated_replicas = 2;
+    uint32 ready_replicas = 3;
+  }
+  Status status = 6;
+
+  // This is a workound since protobufjs currently has serialization
+  // issues for well-known types like google.protobuf.Timestamp
+  // Unix timestamp (milliseconds since Jan 01 1970)
+  int64 creation_time_millis = 7;
 }
 
 message DescribeStatefulSetRequest {
@@ -634,7 +851,7 @@ message DescribeStatefulSetRequest {
 message DescribeStatefulSetResponse {
   option (clutch.api.v1.reference).fields = "stateful_set";
 
-  StatefulSet stateful_set = 1;
+  StatefulSet stateful_set = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message ListStatefulSetsRequest {
@@ -653,7 +870,7 @@ message ListStatefulSetsRequest {
 message ListStatefulSetsResponse {
   option (clutch.api.v1.reference).fields = "stateful_sets";
 
-  repeated StatefulSet stateful_sets = 1;
+  repeated StatefulSet stateful_sets = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteStatefulSetRequest {
@@ -720,6 +937,11 @@ message Service {
 
   map<string, string> labels = 5;
   map<string, string> annotations = 6;
+
+  // service traffic routed to pods with label keys
+  // and values matching this selector.
+  // ref: https://pkg.go.dev/k8s.io/api/core/v1#ServiceSpec
+  map<string, string> selector = 7;
 }
 
 message DescribeServiceRequest {
@@ -737,7 +959,21 @@ message DescribeServiceRequest {
 message DescribeServiceResponse {
   option (clutch.api.v1.reference).fields = "service";
 
-  Service service = 1;
+  Service service = 1 [ (clutch.api.v1.log) = false ];
+}
+
+message ListServicesRequest {
+  string clientset = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string cluster = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string namespace = 3 [ (validate.rules).string = {min_bytes : 1} ];
+
+  ListOptions options = 4 [ (validate.rules).message = {required : true} ];
+}
+
+message ListServicesResponse {
+  option (clutch.api.v1.reference).fields = "services";
+
+  repeated Service services = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteServiceRequest {
@@ -799,7 +1035,7 @@ message DescribeCronJobRequest {
 message DescribeCronJobResponse {
   option (clutch.api.v1.reference).fields = "cron";
 
-  CronJob cronjob = 1;
+  CronJob cronjob = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message ListCronJobsRequest {
@@ -818,7 +1054,7 @@ message ListCronJobsRequest {
 message ListCronJobsResponse {
   option (clutch.api.v1.reference).fields = "cron_jobs";
 
-  repeated CronJob cron_jobs = 1;
+  repeated CronJob cron_jobs = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteCronJobRequest {
@@ -873,7 +1109,7 @@ message ListConfigMapsRequest {
 message ListConfigMapsResponse {
   option (clutch.api.v1.reference).fields = "config_maps";
 
-  repeated ConfigMap config_maps = 1;
+  repeated ConfigMap config_maps = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DescribeConfigMapRequest {
@@ -891,7 +1127,7 @@ message DescribeConfigMapRequest {
 message DescribeConfigMapResponse {
   option (clutch.api.v1.reference).fields = "config_map";
 
-  ConfigMap config_map = 1;
+  ConfigMap config_map = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteConfigMapRequest {
@@ -923,6 +1159,24 @@ message Job {
   map<string, string> labels = 5;
 }
 
+message DescribeJobRequest {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.k8s.v1.Job",
+    pattern : "{cluster}/{namespace}/{name}"
+  };
+
+  string clientset = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string cluster = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string namespace = 3 [ (validate.rules).string = {min_bytes : 1} ];
+  string name = 4 [ (validate.rules).string = {min_bytes : 1} ];
+}
+
+message DescribeJobResponse {
+  option (clutch.api.v1.reference).fields = "job";
+
+  Job job = 1 [ (clutch.api.v1.log) = false ];
+}
+
 message ListJobsRequest {
   option (clutch.api.v1.id).patterns = {
     type_url : "clutch.k8s.v1.Namespace",
@@ -939,7 +1193,7 @@ message ListJobsRequest {
 message ListJobsResponse {
   option (clutch.api.v1.reference).fields = "jobs";
 
-  repeated Job jobs = 1;
+  repeated Job jobs = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message DeleteJobRequest {
@@ -974,7 +1228,7 @@ message CreateJobRequest {
 }
 
 message CreateJobResponse {
-  Job job = 1;
+  Job job = 1 [ (clutch.api.v1.log) = false ];
 }
 
 message Namespace {
@@ -1004,9 +1258,77 @@ message DescribeNamespaceRequest {
 message DescribeNamespaceResponse {
   option (clutch.api.v1.reference).fields = "namespace";
 
-  Namespace namespace = 1;
+  Namespace namespace = 1 [ (clutch.api.v1.log) = false ];
 }
 
+// ObjectKind represent a persistent entity in the system
+// For now we only support the kind Pod, we can expand on this
+// list as we add support for different kinds.
+enum ObjectKind {
+  UNSPECIFIED = 0;
+  UNKNOWN = 1;
+  POD = 2;
+}
+
+enum EventType {
+  TYPE_UNSPECIFIED = 0;
+  NORMAL = 1;
+  WARNING = 2;
+  ERROR = 3;
+}
+
+// this represents a Kubernetes event: https://pkg.go.dev/k8s.io/api/core/v1#Event
+// for a given object
+message Event {
+  string name = 1;
+  string reason = 2;
+  string description = 3;
+
+  // these values represent info of the object
+  // this event is about
+  string cluster = 4;
+  string namespace = 5;
+  // name of the object i.e pod name, deployment name, etc
+  string involved_object_name = 6;
+  // kind of the object e.g pod, deployment, service, etc
+  ObjectKind kind = 7;
+
+  // This creation time refers to the metadata creation time, which the server
+  // marks when the object is created.
+  // https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta
+  int64 creation_time_millis = 10;
+
+  // type is string so that in the future it is open-ended
+  string type = 11;
+
+  // last timestamp is the most recent time the event occurred (which can be different from the first time)
+  int64 last_timestamp_millis = 12;
+
+  int64 first_timestamp_millis = 13;
+}
+
+message ListEventsRequest {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.k8s.v1.Namespace",
+    // requests for all events associated with a given object
+    pattern : "{cluster}/{namespace}/{object_name}"
+  };
+
+  string clientset = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string cluster = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string namespace = 3 [ (validate.rules).string = {min_bytes : 1} ];
+  // name of the object i.e pod name, deployment name, etc
+  string object_name = 4 [ (validate.rules).string = {min_bytes : 1} ];
+  // kind of the object e.g pod, deployment, service, etc
+  // https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+  ObjectKind kind = 5 [ (validate.rules).enum = {defined_only : true} ];
+}
+
+message ListEventsResponse {
+  option (clutch.api.v1.reference).fields = "events";
+
+  repeated Event events = 1 [ (clutch.api.v1.log) = false ];
+}
 // This message type is used to add support for nullable strings and is an
 // alternative to the well-known `StringValue` type. We need it, because the
 // grpc-gateway used by Clutch deserializes a null `StringValue` as an empty
@@ -1036,4 +1358,46 @@ message ObjectMetaFields {
 message RemoveObjectMetaFields {
   repeated string labels = 1 [ (validate.rules).repeated = {unique : true} ];
   repeated string annotations = 2 [ (validate.rules).repeated = {unique : true} ];
+}
+
+message Node {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.k8s.v1.Node",
+    pattern : "{cluster}/{name}"
+  };
+  string name = 1;
+  string cluster = 2;
+  bool unschedulable = 3;
+}
+
+message DescribeNodeRequest {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.k8s.v1.Node",
+    pattern : "{cluster}/{name}"
+  };
+
+  string clientset = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string cluster = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string name = 3 [ (validate.rules).string = {min_bytes : 1} ];
+}
+
+message DescribeNodeResponse {
+  option (clutch.api.v1.reference).fields = "node";
+
+  Node node = 1 [ (clutch.api.v1.log) = false ];
+}
+
+message UpdateNodeRequest {
+  option (clutch.api.v1.id).patterns = {
+    type_url : "clutch.k8s.v1.Node",
+    pattern : "{cluster}/{name}"
+  };
+
+  string clientset = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string cluster = 2 [ (validate.rules).string = {min_bytes : 1} ];
+  string name = 3 [ (validate.rules).string = {min_bytes : 1} ];
+  bool unschedulable = 4;
+}
+
+message UpdateNodeResponse {
 }

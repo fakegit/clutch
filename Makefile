@@ -16,7 +16,7 @@ PROJECT_ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 	@grep -E '^\.PHONY: [a-zA-Z_-]+ .*?# .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = "(: |#)"}; {printf "%-30s %s\n", $$2, $$3}'
 
 .PHONY: all # Generate API, Frontend, and backend assets.
-all: api frontend backend-with-assets
+all: preflight-checks api frontend backend-with-assets
 
 .PHONY: api # Generate API assets.
 api: yarn-ensure
@@ -31,22 +31,23 @@ api-lint-fix:
 	tools/compile-protos.sh -c "$(PROJECT_ROOT_DIR)/api" -lf
 
 .PHONY: api-verify # Verify API proto changes include generate frontend and backend assets.
-api-verify:
+api-verify: yarn-ensure
 	find backend/api -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \;
 	find frontend/api/src -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \;
+	rm backend/internal/test/pb/*.go
 	$(MAKE) api
-	tools/ensure-no-diff.sh backend/api frontend/api/src
+	tools/ensure-no-diff.sh backend/api backend/internal/test/pb frontend/api/src
 
 .PHONY: backend # Build the standalone backend.
-backend:
+backend: preflight-checks-backend
 	cd backend && go build -o ../build/clutch -ldflags="-X main.version=$(VERSION)"
 
 .PHONY: backend-with-assets # Build the backend with frontend assets.
-backend-with-assets:
+backend-with-assets: preflight-checks-backend
 	cd backend && go run cmd/assets/generate.go ../frontend/packages/app/build && go build -tags withAssets -o ../build/clutch -ldflags="-X main.version=$(VERSION)"
 
 .PHONY: backend-dev # Start the backend in development mode.
-backend-dev:
+backend-dev: preflight-checks-backend
 	tools/air.sh
 
 .PHONY: backend-dev-mock # Start the backend in development mode with mock responses.
@@ -54,16 +55,16 @@ backend-dev-mock:
 	cd backend && go run mock/gateway.go
 
 .PHONY: backend-lint # Lint the backend code.
-backend-lint:
+backend-lint: preflight-checks-backend
 	tools/golangci-lint.sh run
 
 .PHONY: backend-lint-fix # Lint and fix the backend code.
-backend-lint-fix:
+backend-lint-fix: preflight-checks-backend
 	tools/golangci-lint.sh run --fix
 	cd backend && go mod tidy
 
 .PHONY: backend-test # Run unit tests for the backend code.
-backend-test:
+backend-test: preflight-checks-backend
 	cd backend && go test -race -covermode=atomic ./...
 
 .PHONY: backend-verify # Verify go modules' requirements files are clean.
@@ -75,24 +76,24 @@ backend-verify:
 backend-config-validation:
 	cd backend && go run main.go -validate -c clutch-config.yaml
 
-.PHONY: yarn-install # Install frontend dependencies.
-yarn-install: yarn-ensure
-	$(YARN) --cwd frontend install --frozen-lockfile
-
 .PHONY: backend-integration-test
 backend-integration-test:
-	cd backend/internal/test/integration/xds && docker-compose up --build --abort-on-container-exit
+	cd backend/internal/test/integration/chaos && ./do_integration_test.sh
+
+.PHONY: frontend-install # Install frontend dependencies.
+frontend-install: yarn-ensure
+	$(YARN) --cwd frontend install --immutable
 
 .PHONY: frontend # Build production frontend assets.
-frontend: yarn-install
+frontend: yarn-ensure preflight-checks-frontend frontend-install
 	$(YARN) --cwd frontend build
 
-.PHONY: frontend-dev-build # Build development frontend assets.
-frontend-dev-build: yarn-install
+.PHONY: frontend-compile # Build development frontend assets.
+frontend-compile: frontend-install
 	$(YARN) --cwd frontend build:dev
 
 .PHONY: frontend-dev # Start the frontend in development mode.
-frontend-dev: yarn-install
+frontend-dev: setup-git-hooks frontend-install
 	$(YARN) --cwd frontend start
 
 .PHONY: frontend-lint # Lint the frontend code.
@@ -117,11 +118,11 @@ frontend-verify: yarn-ensure
 
 .PHONY: docs # Build all doc assets.
 docs: docs-generate yarn-ensure
-	$(YARN) --cwd docs/_website install --frozen-lockfile && $(YARN) --cwd docs/_website build
+	$(YARN) --cwd docs/_website install --immutable && $(YARN) --cwd docs/_website build
 
 .PHONY: docs-dev # Start the docs server in development mode.
 docs-dev: docs-generate yarn-ensure
-	$(YARN) --cwd docs/_website install --frozen-lockfile && BROWSER=none $(YARN) --cwd docs/_website start
+	$(YARN) --cwd docs/_website install --immutable && BROWSER=none $(YARN) --cwd docs/_website start
 
 .PHONY: docs-generate # Generate the documentation content.
 docs-generate:
@@ -150,11 +151,11 @@ scaffold-workflow:
 	cd tools/scaffolding && go run scaffolder.go -m frontend-plugin
 
 .PHONY: storybook # Start storybook locally.
-storybook: yarn-install
+storybook: frontend-install
 	$(YARN) --cwd frontend storybook
 
 .PHONY: storybook-build # Build storybook assets for deploy.
-storybook-build: yarn-install
+storybook-build: frontend-install
 	$(YARN) --cwd frontend storybook:build
 
 .PHONY: test # Unit test all of the code.
@@ -179,4 +180,24 @@ dev-k8s-up:
 .PHONY: dev-k8s-down
 dev-k8s-down:
 	@tools/kind.sh delete cluster --name clutch-local
+
+.PHONY: preflight-checks-frontend
+preflight-checks-frontend:
+	@tools/preflight-checks.sh frontend
+
+.PHONY: preflight-checks-backend
+preflight-checks-backend:
+	@tools/preflight-checks.sh backend
+
+.PHONY: setup-git-hooks
+setup-git-hooks:
+	@tools/setup-git-hooks.sh
+
+.PHONY: preflight-checks
+preflight-checks:
+	@tools/preflight-checks.sh
+
+.PHONY: util-bump-aws # renovate does not bump all AWS packages together, this makes it easy to upgrade all of them at once
+util-bump-aws:
+	cd backend && go list -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all | grep aws-sdk-go | tr '\n' ' ' | xargs go get -u
 

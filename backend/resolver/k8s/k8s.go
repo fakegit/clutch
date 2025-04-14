@@ -12,7 +12,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,6 +32,8 @@ const Name = "clutch.resolver.k8s"
 
 var typeURLPod = meta.TypeURL((*k8sv1api.Pod)(nil))
 var typeURLHPA = meta.TypeURL((*k8sv1api.HPA)(nil))
+var typeURLNode = meta.TypeURL((*k8sv1api.Node)(nil))
+var typeURLDeployment = meta.TypeURL((*k8sv1api.Deployment)(nil))
 
 var typeSchemas = resolver.TypeURLToSchemaMessagesMap{
 	typeURLPod: {
@@ -39,6 +41,12 @@ var typeSchemas = resolver.TypeURLToSchemaMessagesMap{
 	},
 	typeURLHPA: {
 		(*k8sv1resolver.HPAName)(nil),
+	},
+	typeURLNode: {
+		(*k8sv1resolver.Node)(nil),
+	},
+	typeURLDeployment: {
+		(*k8sv1resolver.Deployment)(nil),
 	},
 }
 
@@ -144,6 +152,42 @@ func (r *res) resolveForHPA(ctx context.Context, input proto.Message) ([]*k8sv1a
 	}
 }
 
+func (r *res) locateByNodeName(ctx context.Context, in *k8sv1resolver.Node) ([]*k8sv1api.Node, error) {
+	// Only possible to get one at a time by name.
+	node, err := r.svc.DescribeNode(ctx, in.Clientset, in.Cluster, in.Name)
+	if err != nil {
+		return nil, err
+	}
+	return []*k8sv1api.Node{node}, nil
+}
+
+func (r *res) resolveForNode(ctx context.Context, input proto.Message) ([]*k8sv1api.Node, error) {
+	switch i := input.(type) {
+	case *k8sv1resolver.Node:
+		return r.locateByNodeName(ctx, i)
+	default:
+		return nil, status.Errorf(codes.Internal, "unrecognized input type '%T'", i)
+	}
+}
+
+func (r *res) locateByDeploymentName(ctx context.Context, in *k8sv1resolver.Deployment) ([]*k8sv1api.Deployment, error) {
+	// Only possible to get one at a time by name.
+	deployment, err := r.svc.DescribeDeployment(ctx, in.Clientset, "", in.Namespace, in.Name)
+	if err != nil {
+		return nil, err
+	}
+	return []*k8sv1api.Deployment{deployment}, nil
+}
+
+func (r *res) resolveForDeployment(ctx context.Context, input proto.Message) ([]*k8sv1api.Deployment, error) {
+	switch i := input.(type) {
+	case *k8sv1resolver.Deployment:
+		return r.locateByDeploymentName(ctx, i)
+	default:
+		return nil, status.Errorf(codes.Internal, "unrecognized input type '%T'", i)
+	}
+}
+
 func (r *res) Resolve(ctx context.Context, typeURL string, input proto.Message, limit uint32) (*resolver.Results, error) {
 	switch typeURL {
 	case typeURLPod:
@@ -154,6 +198,18 @@ func (r *res) Resolve(ctx context.Context, typeURL string, input proto.Message, 
 		return &resolver.Results{Messages: resolver.MessageSlice(result)}, nil
 	case typeURLHPA:
 		result, err := r.resolveForHPA(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		return &resolver.Results{Messages: resolver.MessageSlice(result)}, nil
+	case typeURLNode:
+		result, err := r.resolveForNode(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		return &resolver.Results{Messages: resolver.MessageSlice(result)}, nil
+	case typeURLDeployment:
+		result, err := r.resolveForDeployment(ctx, input)
 		if err != nil {
 			return nil, err
 		}
@@ -237,6 +293,70 @@ func (r *res) Search(ctx context.Context, typeURL, query string, limit uint32) (
 		} else {
 			return nil, status.Error(codes.InvalidArgument, "did not understand input")
 		}
+	case typeURLNode:
+		if idPattern.MatchString(query) {
+			patternValues, ok, err := meta.ExtractPatternValuesFromString((*k8sv1api.Node)(nil), query)
+			if err != nil {
+				return nil, err
+			}
+
+			nodeQuery := query
+			cluster := ""
+
+			if ok {
+				nodeQuery = patternValues["name"]
+				cluster = patternValues["cluster"]
+			}
+
+			for _, clientset := range clientsets {
+				handler.Add(1)
+				go func(clientset, cluster, query string) {
+					defer handler.Done()
+					node, err := r.svc.DescribeNode(ctx, clientset, cluster, query)
+					select {
+					case handler.Channel() <- resolver.NewFanoutResult([]*k8sv1api.Node{node}, err):
+						return
+					case <-handler.Cancelled():
+						return
+					}
+				}(clientset, cluster, nodeQuery)
+			}
+		} else {
+			return nil, status.Error(codes.InvalidArgument, "did not understand input")
+		}
+	case typeURLDeployment:
+		if idPattern.MatchString(query) {
+			patternValues, ok, err := meta.ExtractPatternValuesFromString((*k8sv1api.Deployment)(nil), query)
+			if err != nil {
+				return nil, err
+			}
+
+			namespace := metav1.NamespaceAll
+			deploymentQuery := query
+			cluster := ""
+
+			if ok {
+				namespace = patternValues["namespace"]
+				deploymentQuery = patternValues["name"]
+				cluster = patternValues["cluster"]
+			}
+
+			for _, clientset := range clientsets {
+				handler.Add(1)
+				go func(clientset, cluster, namespace, query string) {
+					defer handler.Done()
+					deployment, err := r.svc.DescribeDeployment(ctx, clientset, cluster, namespace, query)
+					select {
+					case handler.Channel() <- resolver.NewFanoutResult([]*k8sv1api.Deployment{deployment}, err):
+						return
+					case <-handler.Cancelled():
+						return
+					}
+				}(clientset, cluster, namespace, deploymentQuery)
+			}
+		} else {
+			return nil, status.Error(codes.InvalidArgument, "did not understand input")
+		}
 	default:
 		return nil, status.Error(codes.Internal, fmt.Sprintf("cannot search for type '%s'", typeURL))
 	}
@@ -244,7 +364,7 @@ func (r *res) Search(ctx context.Context, typeURL, query string, limit uint32) (
 	return handler.Results(limit)
 }
 
-func (r *res) Autocomplete(ctx context.Context, typeURL, search string, limit uint64) ([]*resolverv1.AutocompleteResult, error) {
+func (r *res) Autocomplete(ctx context.Context, typeURL, search string, limit uint64, caseSensitive bool) ([]*resolverv1.AutocompleteResult, error) {
 	if r.topology == nil {
 		return nil, status.Error(codes.FailedPrecondition, "topology service must be enabled to use the K8s autocomplete API")
 	}
@@ -254,7 +374,7 @@ func (r *res) Autocomplete(ctx context.Context, typeURL, search string, limit ui
 		resultLimit = limit
 	}
 
-	results, err := r.topology.Autocomplete(ctx, typeURL, search, resultLimit)
+	results, err := r.topology.Autocomplete(ctx, typeURL, search, resultLimit, caseSensitive)
 	if err != nil {
 		return nil, err
 	}

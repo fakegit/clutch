@@ -7,26 +7,35 @@ import (
 	"github.com/lyft/clutch/backend/mock/service/awsmock"
 	"github.com/lyft/clutch/backend/mock/service/chaos/experimentation/experimentstoremock"
 	"github.com/lyft/clutch/backend/mock/service/envoyadminmock"
+	"github.com/lyft/clutch/backend/mock/service/feedbackmock"
 	"github.com/lyft/clutch/backend/mock/service/githubmock"
 	"github.com/lyft/clutch/backend/mock/service/k8smock"
+	"github.com/lyft/clutch/backend/mock/service/projectmock"
+	"github.com/lyft/clutch/backend/mock/service/shortlinkmock"
 	"github.com/lyft/clutch/backend/mock/service/topologymock"
 	"github.com/lyft/clutch/backend/service"
 	"github.com/lyft/clutch/backend/service/audit"
 	"github.com/lyft/clutch/backend/service/aws"
 	"github.com/lyft/clutch/backend/service/chaos/experimentation/experimentstore"
 	"github.com/lyft/clutch/backend/service/envoyadmin"
+	"github.com/lyft/clutch/backend/service/feedback"
 	"github.com/lyft/clutch/backend/service/github"
 	"github.com/lyft/clutch/backend/service/k8s"
+	"github.com/lyft/clutch/backend/service/project"
+	"github.com/lyft/clutch/backend/service/shortlink"
 	"github.com/lyft/clutch/backend/service/topology"
 )
 
 var MockServiceFactory = service.Factory{
-	aws.Name:             awsmock.NewAsService,
 	audit.Name:           auditmock.NewAsService,
+	aws.Name:             awsmock.NewAsService,
 	envoyadmin.Name:      envoyadminmock.NewAsService,
 	experimentstore.Name: experimentstoremock.NewMock,
+	feedback.Name:        feedbackmock.NewAsService,
 	github.Name:          githubmock.NewAsService,
 	k8s.Name:             k8smock.NewAsService,
+	project.Name:         projectmock.NewAsService,
+	shortlink.Name:       shortlinkmock.NewAsService,
 	topology.Name:        topologymock.NewAsService,
 }
 

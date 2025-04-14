@@ -40,11 +40,7 @@ func (s *svc) DeletePod(ctx context.Context, clientset, cluster, namespace, name
 		return err
 	}
 
-	var gracePeriod int64
-	opts := metav1.DeleteOptions{}
-	opts.GracePeriodSeconds = &gracePeriod
-
-	return cs.CoreV1().Pods(cs.Namespace()).Delete(ctx, name, opts)
+	return cs.CoreV1().Pods(cs.Namespace()).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
 func (s *svc) ListPods(ctx context.Context, clientset, cluster, namespace string, listOpts *k8sapiv1.ListOptions) ([]*k8sapiv1.Pod, error) {
@@ -175,11 +171,11 @@ func podDescription(k8spod *corev1.Pod, cluster string) *k8sapiv1.Pod {
 	// if converted, err := ptypes.TimestampProto(k8spod.Status.StartTime.Time); err == nil {
 	// 	launch = converted
 	// }
-	clusterName := k8spod.ClusterName
+	clusterName := GetKubeClusterName(k8spod)
 	if clusterName == "" {
 		clusterName = cluster
 	}
-	return &k8sapiv1.Pod{
+	pod := &k8sapiv1.Pod{
 		Cluster:    clusterName,
 		Namespace:  k8spod.Namespace,
 		Name:       k8spod.Name,
@@ -187,7 +183,7 @@ func podDescription(k8spod *corev1.Pod, cluster string) *k8sapiv1.Pod {
 		NodeIp:     k8spod.Status.HostIP,
 		PodIp:      k8spod.Status.PodIP,
 		State:      protoForPodState(k8spod.Status.Phase),
-		//StartTime:   launch,
+		// StartTime:   launch,
 		Labels:         k8spod.Labels,
 		Annotations:    k8spod.Annotations,
 		StateReason:    k8spod.Status.Reason,
@@ -195,6 +191,14 @@ func podDescription(k8spod *corev1.Pod, cluster string) *k8sapiv1.Pod {
 		InitContainers: makeContainers(k8spod.Status.InitContainerStatuses),
 		Status:         getPodStatus(k8spod),
 	}
+
+	// This is here as a workaround since we can't use StartTime
+	if k8spod.Status.StartTime != nil {
+		// Note .Unix() gives seconds, not milliseconds
+		pod.StartTimeMillis = k8spod.Status.StartTime.UnixNano() / 1e6
+	}
+
+	return pod
 }
 
 func makeConditions(conditions []corev1.PodCondition) []*k8sapiv1.PodCondition {
@@ -280,7 +284,7 @@ func protoForContainerStateRunning(state *corev1.ContainerStateRunning) *k8sapiv
 	return &k8sapiv1.Container_StateRunning{
 		StateRunning: &k8sapiv1.StateRunning{
 			// FE serialization currently does not support timestamp
-			//StartTime: state.StartedAt,
+			// StartTime: state.StartedAt,
 		},
 	}
 }
@@ -299,6 +303,7 @@ func protoForConditionType(conditionType corev1.PodConditionType) k8sapiv1.PodCo
 		return k8sapiv1.PodCondition_TYPE_UNSPECIFIED
 	}
 }
+
 func protoForConditionStatus(status corev1.ConditionStatus) k8sapiv1.PodCondition_Status {
 	switch status {
 	case corev1.ConditionTrue:
@@ -321,11 +326,25 @@ func getPodStatus(pod *corev1.Pod) string {
 		reason = pod.Status.Reason
 	}
 
+	nativeSidecarContainer := make(map[string]bool)
+	for _, container := range pod.Spec.InitContainers {
+		// https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+		if container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways {
+			nativeSidecarContainer[container.Name] = true
+		}
+	}
+
 	initializing := false
 	for i := range pod.Status.InitContainerStatuses {
 		container := pod.Status.InitContainerStatuses[i]
 		restarts += int(container.RestartCount)
 		switch {
+		case nativeSidecarContainer[container.Name] && container.Started != nil && *container.Started && container.Ready:
+			// https://github.com/kubernetes/kubernetes/blob/66e34012255abf1bbd0956a712817dad77c69c41/pkg/printers/internalversion/printers.go#L908
+			continue
+			// the below is for completed cronjob after all containers exit correctly
+		case nativeSidecarContainer[container.Name] && container.Started != nil && container.State.Terminated != nil:
+			continue
 		case container.State.Terminated != nil && container.State.Terminated.ExitCode == 0:
 			continue
 		case container.State.Terminated != nil:

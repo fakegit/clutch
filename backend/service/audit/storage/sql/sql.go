@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 	rpcstatus "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -25,10 +25,10 @@ import (
 )
 
 type client struct {
-	logger *zap.Logger
-	scope  tally.Scope
-
-	db *sql.DB
+	logger           *zap.Logger
+	scope            tally.Scope
+	db               *sql.DB
+	advisoryLockConn *sql.Conn
 }
 
 func New(cfg *auditconfigv1.Config, logger *zap.Logger, scope tally.Scope) (storage.Storage, error) {
@@ -125,24 +125,57 @@ func (c *client) UnsentEvents(ctx context.Context) ([]*auditv1.Event, error) {
 	const unsentEventsQuery = `
 		UPDATE audit_events
 		SET sent = TRUE
-		WHERE sent = FALSE
-		RETURNING id, occurred_at, details
+		WHERE id IN (SELECT id FROM audit_events WHERE sent = FALSE LIMIT 100)
+		RETURNING id, occurred_at, details;
 	`
 
 	return c.query(ctx, unsentEventsQuery)
 }
 
-func (c *client) ReadEvents(ctx context.Context, start time.Time, end *time.Time) ([]*auditv1.Event, error) {
-	const readEventsRangeStatement = `
+func (c *client) ReadEvents(ctx context.Context, start time.Time, end *time.Time, options *storage.ReadOptions) ([]*auditv1.Event, error) {
+	readEventsRangeStatement := `
 		SELECT id, occurred_at, details FROM audit_events
 		WHERE occurred_at BETWEEN $1::timestamp AND $2::timestamp
 		ORDER BY id
 	`
 
-	if end == nil {
-		return c.query(ctx, readEventsRangeStatement, start, time.Now())
+	endTime := time.Now()
+	if end != nil {
+		endTime = *end
 	}
-	return c.query(ctx, readEventsRangeStatement, start, *end)
+
+	args := []interface{}{start, endTime}
+	if options != nil {
+		switch {
+		case options.Limit != 0 && options.Offset != 0:
+			readEventsRangeStatement = fmt.Sprintf(`%s LIMIT $3 OFFSET $4`, readEventsRangeStatement)
+			args = append(args, options.Limit, options.Offset)
+		case options.Limit != 0:
+			readEventsRangeStatement = fmt.Sprintf(`%s LIMIT $3`, readEventsRangeStatement)
+			args = append(args, options.Limit)
+		case options.Offset != 0:
+			readEventsRangeStatement = fmt.Sprintf(`%s OFFSET $4`, readEventsRangeStatement)
+			args = append(args, options.Offset)
+		}
+	}
+
+	return c.query(ctx, readEventsRangeStatement, args...)
+}
+
+func (c *client) ReadEvent(ctx context.Context, id int64) (*auditv1.Event, error) {
+	const readEventsRangeStatement = `
+		SELECT id, occurred_at, details FROM audit_events
+		WHERE id = $1
+	`
+
+	events, err := c.query(ctx, readEventsRangeStatement, id)
+	if err != nil {
+		return nil, err
+	}
+	if len(events) == 0 {
+		return nil, fmt.Errorf("cannot find event by id: %d", id)
+	}
+	return events[0], nil
 }
 
 func (c *client) query(ctx context.Context, query string, args ...interface{}) ([]*auditv1.Event, error) {
@@ -176,6 +209,8 @@ func (c *client) query(ctx context.Context, query string, args ...interface{}) (
 		}
 
 		proto := &auditv1.Event{
+			// n.b. this is a safe casting since BIGSERIAL can only reach the max value for signed int64.
+			Id:         int64(row.Id), //nolint
 			OccurredAt: occurred,
 			EventType: &auditv1.Event_Event{
 				Event: requestEventProto(c.logger, row),
@@ -187,6 +222,60 @@ func (c *client) query(ctx context.Context, query string, args ...interface{}) (
 	return events, nil
 }
 
+// We create our own connection to use for acquiring the advisory lock.
+// For advisory locks you must use the same session to issue the unlock
+// If not the lock will stay locked until that connection is severed or
+// the unlock request uses the same session in which the lock was created.
+func (c *client) getAdvisoryConn() (*sql.Conn, error) {
+	if c.advisoryLockConn != nil {
+		return c.advisoryLockConn, nil
+	}
+
+	advisoryLockConn, err := c.db.Conn(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	c.advisoryLockConn = advisoryLockConn
+	return advisoryLockConn, nil
+}
+
+func (c *client) AttemptLock(ctx context.Context, lockID uint32) (bool, error) {
+	conn, err := c.getAdvisoryConn()
+	if err != nil {
+		return false, err
+	}
+
+	var lock bool
+	if err := conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1);", lockID).Scan(&lock); err != nil {
+		c.logger.Error("Unable to query for a advisory lock", zap.Error(err))
+		c.advisoryLockConn = nil
+		return false, err
+	}
+	return lock, nil
+}
+
+func (c *client) ReleaseLock(ctx context.Context, lockID uint32) (bool, error) {
+	conn, err := c.getAdvisoryConn()
+	if err != nil {
+		return false, err
+	}
+
+	var unlock bool
+	if err := conn.QueryRowContext(ctx, "SELECT pg_advisory_unlock($1)", lockID).Scan(&unlock); err != nil {
+		c.logger.Error("Unable to perform an advisory unlock", zap.Error(err))
+		c.advisoryLockConn = nil
+		return false, err
+	}
+
+	if conn != nil {
+		conn.Close()
+		c.advisoryLockConn = nil
+	}
+
+	return unlock, nil
+}
+
 type status struct {
 	Code    int    `json:"code"`
 	Message string `json:"message,omitempty"`
@@ -194,7 +283,7 @@ type status struct {
 
 func (s *status) Status() *rpcstatus.Status {
 	return &rpcstatus.Status{
-		Code:    int32(s.Code),
+		Code:    int32(s.Code), //nolint
 		Message: s.Message,
 	}
 }

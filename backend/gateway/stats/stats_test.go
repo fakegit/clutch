@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 )
 
 type mockReporter struct {
@@ -35,7 +35,6 @@ var tests = []struct {
 
 func TestPointTagReporter(t *testing.T) {
 	for idx, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("%d", idx), func(t *testing.T) {
 			t.Parallel()
 

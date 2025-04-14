@@ -1,40 +1,75 @@
 import React from "react";
-import { shallow } from "enzyme";
+import { render, unmountComponentAtNode } from "react-dom";
+
+import "@testing-library/jest-dom";
 
 import { Button } from "../button";
+import { ThemeProvider } from "../Theme";
 
-describe("Primary Button component", () => {
-  let component;
-
-  beforeAll(() => {
-    component = shallow(<Button text="test" />);
-  });
-
-  it("renders correctly", () => {
-    expect(component.debug()).toMatchSnapshot();
-  });
+let container: HTMLElement;
+beforeEach(() => {
+  // setup a DOM element as a render target
+  container = document.createElement("div");
+  document.body.appendChild(container);
 });
 
-describe("Neutral Button component", () => {
-  let component;
-
-  beforeAll(() => {
-    component = shallow(<Button variant="neutral" text="test" />);
-  });
-
-  it("renders correctly", () => {
-    expect(component.debug()).toMatchSnapshot();
-  });
+afterEach(() => {
+  // cleanup on exiting
+  unmountComponentAtNode(container);
+  container.remove();
 });
 
-describe("Destructive Button component", () => {
-  let component;
+test("Primary Button Component", () => {
+  render(
+    <ThemeProvider>
+      <Button text="test" />
+    </ThemeProvider>,
+    container
+  );
 
-  beforeAll(() => {
-    component = shallow(<Button variant="destructive" text="test" />);
-  });
+  expect(container.innerHTML).toMatchSnapshot();
+});
 
-  it("renders correctly", () => {
-    expect(component.debug()).toMatchSnapshot();
-  });
+test("Neutral Button Component", () => {
+  render(
+    <ThemeProvider>
+      <Button variant="neutral" text="test" />
+    </ThemeProvider>,
+    container
+  );
+
+  expect(container.innerHTML).toMatchSnapshot();
+});
+
+test("Destructive Button Component", () => {
+  render(
+    <ThemeProvider>
+      <Button variant="destructive" text="test" />
+    </ThemeProvider>,
+    container
+  );
+
+  expect(container.innerHTML).toMatchSnapshot();
+});
+
+test("Small Button Component", () => {
+  render(
+    <ThemeProvider>
+      <Button size="small" text="test" />
+    </ThemeProvider>,
+    container
+  );
+
+  expect(container.innerHTML).toMatchSnapshot();
+});
+
+test("Large Button Component", () => {
+  render(
+    <ThemeProvider>
+      <Button size="large" text="test" />
+    </ThemeProvider>,
+    container
+  );
+
+  expect(container.innerHTML).toMatchSnapshot();
 });

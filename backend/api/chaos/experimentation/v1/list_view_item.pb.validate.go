@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,23 +31,54 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
-// define the regex for a UUID once up-front
-var _list_view_item_uuidPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-
 // Validate checks the field values on ListViewItem with the rules defined in
-// the proto definition for this message. If any rules are violated, an error
-// is returned.
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *ListViewItem) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListViewItem with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in ListViewItemMultiError, or
+// nil if none found.
+func (m *ListViewItem) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListViewItem) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	// no validation rules for Id
 
-	if v, ok := interface{}(m.GetProperties()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetProperties()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ListViewItemValidationError{
+					field:  "Properties",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ListViewItemValidationError{
+					field:  "Properties",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetProperties()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return ListViewItemValidationError{
 				field:  "Properties",
@@ -56,8 +88,28 @@ func (m *ListViewItem) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return ListViewItemMultiError(errors)
+	}
+
 	return nil
 }
+
+// ListViewItemMultiError is an error wrapping multiple validation errors
+// returned by ListViewItem.ValidateAll() if the designated constraints aren't met.
+type ListViewItemMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListViewItemMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListViewItemMultiError) AllErrors() []error { return m }
 
 // ListViewItemValidationError is the validation error returned by
 // ListViewItem.Validate if the designated constraints aren't met.

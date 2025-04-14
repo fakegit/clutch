@@ -1,10 +1,12 @@
 import React from "react";
-import { Grid, IconButton } from "@material-ui/core";
-import LaunchIcon from "@material-ui/icons/Launch";
-import { Alert } from "@material-ui/lab";
+import LaunchIcon from "@mui/icons-material/Launch";
+import { Alert, Grid, IconButton } from "@mui/material";
 
 import { Dialog, DialogContent } from "../dialog";
 import Code from "../text";
+import type { LayoutProps } from "../WorkflowLayout";
+
+import type { WorkflowIcon } from "./index";
 
 export interface BaseWorkflowProps {
   heading: string;
@@ -16,32 +18,94 @@ interface Developer {
 }
 
 interface BaseWorkflowConfiguration {
+  /**
+   * Team name and contact url, which will be displayed in the case of errors to
+   * allow contact of the owning developer.
+   */
   developer: Developer;
+  /**
+   * The name of the workflow which will be displayed in the UI.
+   */
   displayName: string;
+  /**
+   * The name of the group which will display in the sidebar.
+   */
   group: string;
+  /**
+   * The path (subordinate to the group) where the workflow will exist.
+   * (optionally) use "" to override the landing page, will need to also update the route path
+   */
   path: string;
+  /**
+   * The routes correspond to different tasks in a workflow (i.e. for AWS EC2,
+   * users could `reboot instance` or `terminate instance`).
+   */
   routes: unknown;
 }
 
-export interface Workflow extends BaseWorkflowConfiguration {
+interface WorkflowShortlinkConfiguration {
+  /**
+   * (Optional) property to enable a workflow to utilize short linking of its state.
+   * This property is required to show the short link generator in the header
+   */
+  shortLink?: boolean;
+}
+
+interface WorkflowLayoutConfiguration {
+  /**
+   * (Optional) property to pass the defined layout properties to all of its defined routes
+   */
+  defaultLayoutProps?: Omit<LayoutProps, "workflowsInPath" | "title" | "subtitle">;
+}
+
+export interface Workflow
+  extends BaseWorkflowConfiguration,
+    WorkflowShortlinkConfiguration,
+    WorkflowLayoutConfiguration {
+  /**
+   * An optional property that is set via the config and allows for the display of an icon given a path,
+   * this will override the default avatar.
+   * { path: string }
+   */
+  icon?: WorkflowIcon;
+  /**
+   * Configured routes allow for the optional properties of `trending` (whether to display
+   * on homepage) and `componentProps` which allow the passing of workflow/route
+   * specific props.
+   */
   routes: ConfiguredRoute[];
 }
 
-export interface WorkflowConfiguration extends BaseWorkflowConfiguration {
+export interface WorkflowConfiguration
+  extends BaseWorkflowConfiguration,
+    WorkflowShortlinkConfiguration,
+    WorkflowLayoutConfiguration {
+  shortLink?: boolean;
   routes: {
     [key: string]: Route;
   };
 }
 
-interface Route {
+export interface Route {
   component: React.FC<any>;
   description: string;
   displayName?: string;
+  /** (optionally) use "" to override the landing page */
   path: string;
   /** Properties required by the Component that are set only via the config. */
   requiredConfigProps?: string[];
   /** Is the workflow discoverable via search and drawer navigation. This defaults to false. */
   hideNav?: boolean;
+  /**
+   * The feature flag used to determine if the route should be registered.
+   *
+   * If this is not set the route will always be registered.
+   */
+  featureFlag?: string;
+  /**
+   * (Optional) property to define layout properties for a single route
+   */
+  layoutProps?: Omit<LayoutProps, "workflowsInPath" | "title" | "subtitle">;
 }
 
 export interface ConfiguredRoute extends Route {
@@ -107,7 +171,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       }
 
       return (
-        <Grid container direction="column" justify="center" alignItems="center">
+        <Grid container direction="column" justifyContent="center" alignItems="center">
           <Dialog onClose={this.onDetailsClose} open={showDetails} title="Stack Trace">
             <DialogContent>
               <Code>{errorInfo?.componentStack || "Could not determine stack trace"}</Code>

@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,29 +31,66 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
-// define the regex for a UUID once up-front
-var _storage_uuidPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-
 // Validate checks the field values on StorageConfig with the rules defined in
-// the proto definition for this message. If any rules are violated, an error
-// is returned.
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *StorageConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StorageConfig with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in StorageConfigMultiError, or
+// nil if none found.
+func (m *StorageConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StorageConfig) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if len(m.GetEncryptionPassphrase()) < 1 {
-		return StorageConfigValidationError{
+		err := StorageConfigValidationError{
 			field:  "EncryptionPassphrase",
 			reason: "value length must be at least 1 bytes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return StorageConfigMultiError(errors)
 	}
 
 	return nil
 }
+
+// StorageConfigMultiError is an error wrapping multiple validation errors
+// returned by StorageConfig.ValidateAll() if the designated constraints
+// aren't met.
+type StorageConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StorageConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StorageConfigMultiError) AllErrors() []error { return m }
 
 // StorageConfigValidationError is the validation error returned by
 // StorageConfig.Validate if the designated constraints aren't met.

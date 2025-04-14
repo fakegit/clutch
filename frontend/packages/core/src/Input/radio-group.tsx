@@ -5,20 +5,21 @@ import {
   FormControlLabel,
   FormLabel as MuiFormLabel,
   RadioGroup as MuiRadioGroup,
-} from "@material-ui/core";
+  Theme,
+} from "@mui/material";
 
 import Radio from "./radio";
 
-const FormLabel = styled(MuiFormLabel)({
+const FormLabel = styled(MuiFormLabel)(({ theme }: { theme: Theme }) => ({
   "&&": {
-    color: "#2D3F50",
+    color: theme.palette.secondary[700],
   },
   fontWeight: "bold",
   position: "relative",
   "&.Mui-disabled": {
     opacity: "0.75",
   },
-});
+}));
 
 const FormControl = styled(MuiFormControl)({
   margin: "16px 0",
@@ -47,12 +48,14 @@ const RadioGroup: React.FC<RadioGroupProps> = ({
   options,
   onChange,
 }) => {
-  if (options.length === 0) {
-    return null;
-  }
-
   const defaultIdx = defaultOption < options.length ? defaultOption : 0;
   const [selectedIdx, setSelectedIdx] = React.useState(defaultIdx);
+
+  React.useEffect(() => {
+    if (onChange !== undefined && options.length !== 0) {
+      onChange(options[selectedIdx]?.value || options[selectedIdx].label);
+    }
+  }, []);
 
   const updateSelectedOption = (event: React.ChangeEvent<{ name?: string; value: string }>) => {
     const { value } = event.target;
@@ -63,11 +66,9 @@ const RadioGroup: React.FC<RadioGroupProps> = ({
     }
   };
 
-  React.useEffect(() => {
-    if (onChange !== undefined) {
-      onChange(options[selectedIdx]?.value || options[selectedIdx].label);
-    }
-  }, []);
+  if (options.length === 0) {
+    return null;
+  }
 
   return (
     <FormControl key={name} disabled={disabled}>

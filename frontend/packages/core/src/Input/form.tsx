@@ -5,6 +5,9 @@ const Form = styled.form({
   "> *": {
     margin: "8px 0",
   },
+  "> .MuiFormControl-root": {
+    margin: "8px 0",
+  },
 });
 
 const FormRow = styled.div({
@@ -12,7 +15,7 @@ const FormRow = styled.div({
   "> *": {
     margin: "0 8px",
   },
-  "> *:first-child": {
+  "> *:first-of-type": {
     margin: "0 8px 0 0",
   },
   "> *:last-child": {

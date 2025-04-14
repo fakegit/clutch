@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package clutch.config.module.feedback.v1;
+
+option go_package = "github.com/lyft/clutch/backend/api/config/module/feedback/v1;feedbackmodv1";
+
+import "validate/validate.proto";
+import "feedback/v1/feedback.proto";
+
+message Survey {
+  string prompt = 1 [ (validate.rules).string = {min_bytes : 1} ];
+  string freeform_prompt = 2;
+  repeated clutch.feedback.v1.RatingLabel rating_labels = 3 [ (validate.rules).repeated = {min_items : 2} ];
+}
+
+message SurveyOrigin {
+  clutch.feedback.v1.Origin origin = 1 [ (validate.rules).enum = {defined_only : true not_in : 0} ];
+  Survey survey = 2 [ (validate.rules).message = {required : true} ];
+}
+
+message Config {
+  repeated SurveyOrigin origins = 1 [ (validate.rules).repeated = {min_items : 1} ];
+}
